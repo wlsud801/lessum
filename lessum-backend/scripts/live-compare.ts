@@ -10,11 +10,24 @@ import { ImapFlow } from 'imapflow'
 import { parseEmail } from '../src/lib/statements/email.js'
 import type { StatementResult } from '../src/lib/statements/statement.js'
 
+const PASSWORD_ENV: Record<string, string | null> = {
+  lotte: null,
+  woori: 'STATEMENT_PASSWORD_WOORI',
+  hyundai: 'STATEMENT_PASSWORD_HYUNDAI',
+}
+
+const issuer = process.argv[2] ?? ''
+if (!(issuer in PASSWORD_ENV)) {
+  console.log('사용법: npx tsx scripts/live-compare.ts <lotte|woori|hyundai>')
+  process.exit(1)
+}
+const passwordEnv = PASSWORD_ENV[issuer]
+const statementPassword = passwordEnv ? process.env[passwordEnv] : undefined
+
 const REFERENCE = resolve(
   process.cwd(),
-  '../../outputs/email-import-private/naver-other-cards-check/lotte/statement.json',
+  `../../outputs/email-import-private/naver-other-cards-check/${issuer}/statement.json`,
 )
-const SENDER = 'mailmaster@lottecardmailcenter.net'
 
 const email = process.env.NAVER_TEST_EMAIL?.trim() ?? ''
 const appPassword = process.env.NAVER_TEST_APP_PASSWORD ?? ''
@@ -98,9 +111,14 @@ try {
       console.log(`[2] 같은 UID 메일 수신: 원본 해시 ${identical ? '일치 (바이트 동일)' : '불일치'}`)
 
       if (identical) {
-        const result = await parseEmail(message.source, 'lotte')
+        console.log(
+          `  명세서 암호(${passwordEnv ?? '불필요'}): ${
+            passwordEnv ? (statementPassword ? '설정됨' : '비어 있음') : '불필요'
+          }`,
+        )
+        const result = await parseEmail(message.source, issuer, statementPassword)
         const { topMismatch, rowMismatch, rows } = compare(result)
-        console.log('[3] TypeScript 파서 결과 vs Python 결과')
+        console.log(`[3] ${issuer}: TypeScript 파서 결과 vs Python 결과`)
         console.log(`  상태: ${result.status} (Python: ${reference.status})`)
         console.log(`  거래 행 수: ${rows[0]} (Python: ${rows[1]})`)
         console.log(`  최상위 필드 불일치: ${topMismatch.length ? topMismatch.join(', ') : '없음'}`)
