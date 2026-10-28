@@ -1,6 +1,10 @@
 export interface AuthActionState {
   error?: string
   message?: string
+  fieldErrors?: Partial<
+    Record<'email' | 'password' | 'passwordConfirm', string>
+  >
+  values?: { email?: string }
 }
 
 export interface MeResponse {

@@ -71,22 +71,28 @@ export async function signup(
   const password = String(formData.get('password') ?? '')
   const passwordConfirm = String(formData.get('passwordConfirm') ?? '')
 
+  const values = { email }
+  const fieldErrors: NonNullable<AuthActionState['fieldErrors']> = {}
+
   if (!EMAIL_PATTERN.test(email)) {
-    return { error: '올바른 이메일을 입력해주세요.' }
+    fieldErrors.email = '올바른 이메일 형식이 아닙니다.'
   }
   const passwordError = validatePassword(password)
   if (passwordError) {
-    return { error: passwordError }
+    fieldErrors.password = passwordError
   }
   if (password !== passwordConfirm) {
-    return { error: '비밀번호 확인이 일치하지 않습니다.' }
+    fieldErrors.passwordConfirm = '비밀번호 확인이 일치하지 않습니다.'
+  }
+  if (Object.keys(fieldErrors).length > 0) {
+    return { fieldErrors, values }
   }
   if (!formData.get('terms') || !formData.get('privacy')) {
-    return { error: '필수 약관에 모두 동의해주세요.' }
+    return { error: '필수 약관에 모두 동의해주세요.', values }
   }
 
   const supabase = await createSupabaseServerClient()
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -97,12 +103,22 @@ export async function signup(
 
   if (error) {
     if (error.code === 'weak_password') {
-      return { error: '비밀번호 정책을 만족하지 않습니다.' }
+      return {
+        fieldErrors: { password: '비밀번호 정책을 만족하지 않습니다.' },
+        values,
+      }
     }
     if (error.code === 'over_email_send_rate_limit') {
-      return { error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' }
+      return {
+        error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.',
+        values,
+      }
     }
-    return { error: '가입에 실패했습니다. 잠시 후 다시 시도해주세요.' }
+    return { error: '가입에 실패했습니다. 잠시 후 다시 시도해주세요.', values }
+  }
+
+  if (data.user?.identities?.length === 0) {
+    return { fieldErrors: { email: '이미 가입된 이메일입니다.' }, values }
   }
 
   redirect(`/signup/verify?email=${encodeURIComponent(email)}`)

@@ -13,9 +13,10 @@ import { MIN_PASSWORD_LENGTH } from '@/lib/auth/constants'
 
 export function SignupForm() {
   const [state, formAction, isPending] = useActionState(signup, {})
+  const { fieldErrors } = state
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form action={formAction} noValidate className="flex flex-col gap-4">
       <FormAlert error={state.error} />
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email">이메일</Label>
@@ -25,8 +26,16 @@ export function SignupForm() {
           type="email"
           autoComplete="email"
           placeholder="email@example.com"
+          defaultValue={state.values?.email}
+          aria-invalid={!!fieldErrors?.email}
+          aria-describedby={fieldErrors?.email ? 'email-error' : undefined}
           required
         />
+        {fieldErrors?.email && (
+          <p id="email-error" className="text-xs text-destructive">
+            {fieldErrors.email}
+          </p>
+        )}
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="password">비밀번호</Label>
@@ -36,12 +45,21 @@ export function SignupForm() {
           type="password"
           autoComplete="new-password"
           placeholder="비밀번호를 입력하세요"
-          minLength={MIN_PASSWORD_LENGTH}
+          aria-invalid={!!fieldErrors?.password}
+          aria-describedby={
+            fieldErrors?.password ? 'password-error' : undefined
+          }
           required
         />
-        <p className="text-xs text-muted-foreground">
-          {MIN_PASSWORD_LENGTH}자 이상 입력해주세요.
-        </p>
+        {fieldErrors?.password ? (
+          <p id="password-error" className="text-xs text-destructive">
+            {fieldErrors.password}
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            {MIN_PASSWORD_LENGTH}자 이상 입력해주세요.
+          </p>
+        )}
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="passwordConfirm">비밀번호 확인</Label>
@@ -51,8 +69,17 @@ export function SignupForm() {
           type="password"
           autoComplete="new-password"
           placeholder="같은 비밀번호를 다시 입력하세요"
+          aria-invalid={!!fieldErrors?.passwordConfirm}
+          aria-describedby={
+            fieldErrors?.passwordConfirm ? 'passwordConfirm-error' : undefined
+          }
           required
         />
+        {fieldErrors?.passwordConfirm && (
+          <p id="passwordConfirm-error" className="text-xs text-destructive">
+            {fieldErrors.passwordConfirm}
+          </p>
+        )}
       </div>
       <div className="flex flex-col gap-3 text-sm">
         <div className="flex items-center gap-2">
