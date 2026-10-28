@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
+import { getMe } from './api'
 import { PRIVACY_VERSION, TERMS_VERSION } from './constants'
 import type { AuthActionState } from './types'
 import {
@@ -44,13 +45,23 @@ export async function login(
   }
 
   const supabase = await createSupabaseServerClient()
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
 
   if (error) {
     if (error.code === 'email_not_confirmed') {
       redirect(`/signup/verify?email=${encodeURIComponent(email)}`)
     }
     return { error: '이메일 또는 비밀번호가 올바르지 않습니다.' }
+  }
+
+  const isFirstLogin = await getMe(data.session.access_token)
+    .then((me) => me?.is_first_login === true)
+    .catch(() => false)
+  if (isFirstLogin) {
+    redirect('/onboarding')
   }
 
   redirect(getSafeNextPath(formData))
