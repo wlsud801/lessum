@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { simpleParser } from 'mailparser'
 
 import { StatementFormatError } from './errors.js'
+import { parseHyundai } from './hyundai.js'
 import { parseLotte } from './lotte.js'
 import type { StatementResult } from './statement.js'
 import { decodeHtml } from './text.js'
@@ -15,6 +16,7 @@ export const MAX_BYTES = 20 * 1024 * 1024
 const PARSERS: Record<string, (text: string) => StatementResult> = {
   lotte: parseLotte,
   woori: parseWoori,
+  hyundai: parseHyundai,
 }
 
 const sha256Hex = (data: Uint8Array | string) =>

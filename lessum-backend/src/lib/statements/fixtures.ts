@@ -38,6 +38,27 @@ export function wooriFixture({
     </tbody></table></body></html>`
 }
 
+export function hyundaiFixture({
+  arrayLength = 3,
+  declaredCount = 2,
+  extraRows = '',
+  tables = '',
+}: {
+  arrayLength?: number
+  declaredCount?: number
+  extraRows?: string
+  tables?: string
+} = {}): string {
+  const dated = (billedFee: string) =>
+    `arUseDesc[loop++] = new UseDesc(loop,'260901','본인',gf_Convert2ByteChar2('카드'),gf_Convert2ByteChar2('상점(주),지점'),'1,000','0','0','1,000','${billedFee}','0','','0','0','N','110113');`
+  return `<html><body>결제일 : 2026년 10월 12일${tables}<script>arUseDesc = Array(${arrayLength});
+    ${dated('10')}
+    ${dated('0')}
+    ${extraRows}
+    arUseDesc[loop++] = new UseDesc(loop,'','',gf_Convert2ByteChar2(''),gf_Convert2ByteChar2('총합계${declaredCount}건'),'0','0','0','2,000','10','0','','0','0','N','999999');
+    </script></body></html>`
+}
+
 export function buildEmail(
   attachments: {
     filename: string
