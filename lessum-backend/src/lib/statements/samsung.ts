@@ -24,6 +24,7 @@ export interface SamsungReference {
     declared_summary_krw: Record<string, number | null>
     declared_grand_total_krw: number | null
   }
+  official_cancellation_count?: number
 }
 
 const lookupKey = (...parts: unknown[]) => JSON.stringify(parts)

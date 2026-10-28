@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto'
 
-import { simpleParser } from 'mailparser'
+import { simpleParser, type ParsedMail } from 'mailparser'
 
 import { StatementFormatError } from './errors.js'
+import { loadDocument } from './html.js'
 import { parseHyundai } from './hyundai.js'
 import { parseLotte } from './lotte.js'
+import { LOGIN_URL } from './official-client.js'
 import type { StatementResult } from './statement.js'
 import { decodeHtml } from './text.js'
 import { decryptVestmail } from './vestmail.js'
@@ -38,6 +40,23 @@ export function parseAttachment(
     html = decryptVestmail(text, password)
   }
 
+  if (issuer === 'samsung') {
+    const hasLoginForm = loadDocument(html)('form')
+      .toArray()
+      .some((form) => form.attribs.action === LOGIN_URL)
+    if (!hasLoginForm) {
+      throw new StatementFormatError('Unsupported Samsung statement format')
+    }
+    return {
+      status: 'requires_online_statement',
+      transactions: [],
+      references: [],
+      warnings: [
+        'Decrypted attachment contains access information, not transactions. Use the Samsung online collection flow.',
+      ],
+    }
+  }
+
   const parser = PARSERS[issuer]
   if (!parser) {
     throw new StatementFormatError('Unsupported issuer')
@@ -65,41 +84,54 @@ export function attachSource(
   return result
 }
 
-export async function parseEmail(
-  data: Uint8Array,
-  issuer: string,
-  password?: string | null,
-): Promise<StatementResult> {
+export async function parseMessage(data: Uint8Array): Promise<ParsedMail> {
   if (data.length > MAX_BYTES) {
     throw new StatementFormatError('Email exceeds 20 MiB limit')
   }
-
-  const message = await simpleParser(Buffer.from(data), {
+  return simpleParser(Buffer.from(data), {
     skipHtmlToText: true,
     skipImageLinks: true,
     skipTextToHtml: true,
     skipTextLinks: true,
   })
+}
+
+export function extractHtmlAttachment(
+  message: ParsedMail,
+  countError: string,
+  sizeError: string,
+): { raw: Buffer; text: string } {
   const attachments = message.attachments.filter(
     (attachment) =>
       attachment.filename && /\.html?$/i.test(attachment.filename),
   )
   if (attachments.length !== 1) {
-    throw new StatementFormatError(
-      'Expected exactly one HTML statement attachment',
-    )
+    throw new StatementFormatError(countError)
   }
 
   const attachment = attachments[0]
   const raw = attachment.content
   if (!raw || raw.length > MAX_BYTES) {
-    throw new StatementFormatError('Invalid attachment size')
+    throw new StatementFormatError(sizeError)
   }
 
   const contentType = attachment.headers.get('content-type') as
     | { params?: { charset?: string } }
     | undefined
-  const text = decodeHtml(raw, contentType?.params?.charset)
+  return { raw, text: decodeHtml(raw, contentType?.params?.charset) }
+}
+
+export async function parseEmail(
+  data: Uint8Array,
+  issuer: string,
+  password?: string | null,
+): Promise<StatementResult> {
+  const message = await parseMessage(data)
+  const { raw, text } = extractHtmlAttachment(
+    message,
+    'Expected exactly one HTML statement attachment',
+    'Invalid attachment size',
+  )
 
   return attachSource(
     parseAttachment(issuer, text, password),

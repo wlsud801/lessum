@@ -4,6 +4,7 @@ import { describe, it } from 'node:test'
 import { MAX_BYTES, PARSER_VERSION, attachSource, parseAttachment, parseEmail } from './email.js'
 import { StatementFormatError } from './errors.js'
 import { buildEmail, lotteFixture, lotteFixtureEucKr } from './fixtures.js'
+import { LOGIN_URL } from './official-client.js'
 import { encryptVestmail } from './test-support.js'
 
 const html = (content = lotteFixture()) => Buffer.from(content)
@@ -170,5 +171,44 @@ describe('parseAttachment / attachSource', () => {
       make('lotte').transactions.map((row) => row.source_row_id),
     )
     assert.notEqual(make('lotte').transactions[0].source_row_id, make('woori').transactions[0].source_row_id)
+  })
+})
+
+describe('삼성카드 첨부 (온라인 조회 필요)', () => {
+  const token = 'SYNTHETIC-ACCESS-TOKEN'
+  const loginForm = `<html><form action="${LOGIN_URL}" method="POST"><input name="pvalue" value="${token}"></form></html>`
+
+  it('복호화한 첨부에 접속 정보만 있으면 requires_online_statement이고 접속 정보를 노출하지 않는다 (원본 Python 테스트)', () => {
+    const result = parseAttachment('samsung', encryptVestmail(loginForm), 'test-only')
+
+    assert.equal(result.status, 'requires_online_statement')
+    assert.deepEqual(result.transactions, [])
+    assert.ok(!JSON.stringify(result).includes(token))
+  })
+
+  it('이메일 경로에서도 접속 정보가 결과에 남지 않는다', async () => {
+    const data = buildEmail([{ filename: 'a.html', content: encryptVestmail(loginForm) }])
+    const result = await parseEmail(data, 'samsung', 'test-only')
+
+    assert.equal(result.status, 'requires_online_statement')
+    assert.equal(result.issuer, 'samsung')
+    assert.ok(!JSON.stringify(result).includes(token))
+  })
+
+  it('비밀번호가 없으면 password_required이다', () => {
+    assert.equal(parseAttachment('samsung', encryptVestmail(loginForm)).status, 'password_required')
+  })
+
+  it('로그인 양식이 없는 HTML은 지원하지 않는 형식으로 거부한다', () => {
+    assert.throws(
+      () => parseAttachment('samsung', '<html><body>거래 내역</body></html>'),
+      (error: unknown) => error instanceof StatementFormatError && /Unsupported Samsung statement format/.test(error.message),
+    )
+  })
+
+  it('다른 주소로 보내는 양식은 로그인 양식으로 인정하지 않는다', () => {
+    const other = loginForm.replace(LOGIN_URL, 'https://example.org/steal')
+
+    assert.throws(() => parseAttachment('samsung', other), StatementFormatError)
   })
 })

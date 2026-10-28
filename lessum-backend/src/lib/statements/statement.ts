@@ -120,6 +120,7 @@ export interface StatementResult {
   source_format?: string
   source_sha256?: string
   attachment_sha256?: string
+  collection?: Record<string, unknown>
 }
 
 const PAYMENT_DATE_PATTERN =
