@@ -12,6 +12,32 @@ export function lotteFixture({
     </tbody></table></body></html>`
 }
 
+export function wooriFixture({
+  total = '300',
+  fee = '10',
+  extraRows = '',
+}: { total?: string; fee?: string; extraRows?: string } = {}): string {
+  const row = (
+    date: string,
+    merchant: string,
+    original: string,
+    billed: string,
+    rowFee: string,
+  ) =>
+    `<tr><td>${date}</td><td>${merchant}</td><td>${original}</td><td></td><td></td><td>${billed}</td><td>${rowFee}</td><td></td><td></td><td>${billed}</td><td></td><td></td><td></td></tr>`
+  return `<html><body>결제일 2026년 10월 12일<table><thead><tr><th>이용일자 이용가맹점 납부하실금액</th></tr></thead><tbody>
+    <tr><td>(본인 신용 1234)</td></tr>
+    ${row('09/01', '같은상점', '100', '100', '10')}
+    ${row('09/01', '같은상점', '100', '100', '0')}
+    <tr><td>(본인 체크 5678)</td></tr>
+    ${row('09/02', '체크상점', '50', '0', '0')}
+    ${row('09/03', '환급금', '-100', '-100', '0')}
+    ${row('09/04', '다른상점', '200', '200', '0')}
+    ${extraRows}
+    <tr><td>통합청구합계</td><td></td><td></td><td></td><td>${total}</td><td>${fee}</td></tr>
+    </tbody></table></body></html>`
+}
+
 export function buildEmail(
   attachments: {
     filename: string

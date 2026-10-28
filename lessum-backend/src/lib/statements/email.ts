@@ -7,12 +7,14 @@ import { parseLotte } from './lotte.js'
 import type { StatementResult } from './statement.js'
 import { decodeHtml } from './text.js'
 import { decryptVestmail } from './vestmail.js'
+import { parseWoori } from './woori.js'
 
 export const PARSER_VERSION = 'ts-email-v3'
 export const MAX_BYTES = 20 * 1024 * 1024
 
 const PARSERS: Record<string, (text: string) => StatementResult> = {
   lotte: parseLotte,
+  woori: parseWoori,
 }
 
 const sha256Hex = (data: Uint8Array | string) =>
