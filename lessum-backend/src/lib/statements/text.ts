@@ -19,8 +19,12 @@ export interface DateContext {
 
 export type DateBasis = 'explicit' | 'inferred_from_payment_date'
 
+export function collapseWhitespace(value: string): string {
+  return value.split(PYTHON_WHITESPACE).filter(Boolean).join(' ')
+}
+
 export function clean(value: string): string {
-  return decodeHTML(value).split(PYTHON_WHITESPACE).filter(Boolean).join(' ')
+  return collapseWhitespace(decodeHTML(value))
 }
 
 export function amount(value: string): number | null {
