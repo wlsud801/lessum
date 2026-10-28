@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import { FinishOnboardingForm } from '@/components/onboarding/FinishOnboardingForm'
 import { NoticeBox } from '@/components/onboarding/NoticeBox'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -66,12 +67,7 @@ export function EmptyCollectResult() {
         >
           수집 설정 다시 확인
         </Link>
-        <Link
-          href="/home"
-          className={cn(buttonVariants(), 'h-11 w-[300px] font-bold')}
-        >
-          가계부 시작하기
-        </Link>
+        <FinishOnboardingForm label="가계부 시작하기" className="w-[300px]" />
       </div>
       <p className="text-[15px]">
         CSV와 직접 입력은 가계부에 들어간 뒤 누락된 내역이 있을 때 이용할 수

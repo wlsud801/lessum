@@ -1,8 +1,5 @@
-import Link from 'next/link'
-
+import { FinishOnboardingForm } from '@/components/onboarding/FinishOnboardingForm'
 import { NoticeBox } from '@/components/onboarding/NoticeBox'
-import { buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 
 interface ResultStat {
   label: string
@@ -82,22 +79,13 @@ export function FirstCollectResult() {
         확인이 필요한 내역은 가계부에서 이어서 검토할 수 있습니다.
       </p>
       <div className="flex gap-3">
-        {/* TODO : 확인 필요 목록 화면 경로 확정 후 연결 */}
-        <Link
-          href="/home"
-          className={cn(
-            buttonVariants({ variant: 'outline' }),
-            'h-11 w-[220px] font-bold',
-          )}
-        >
-          확인할 내역 보기
-        </Link>
-        <Link
-          href="/home"
-          className={cn(buttonVariants(), 'h-11 w-[300px] font-bold')}
-        >
-          가계부 시작하기
-        </Link>
+        {/* TODO : 확인 필요 목록 화면 경로 확정 후 해당 화면으로 이동 */}
+        <FinishOnboardingForm
+          label="확인할 내역 보기"
+          variant="outline"
+          className="w-[220px]"
+        />
+        <FinishOnboardingForm label="가계부 시작하기" className="w-[300px]" />
       </div>
     </div>
   )

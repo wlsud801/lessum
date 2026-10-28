@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import { FinishOnboardingForm } from '@/components/onboarding/FinishOnboardingForm'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -24,15 +25,7 @@ export default function OnboardingStartPage() {
         >
           네이버 메일 연결하기
         </Link>
-        <Link
-          href="/home"
-          className={cn(
-            buttonVariants({ variant: 'outline' }),
-            'h-11 w-full font-bold',
-          )}
-        >
-          나중에 시작하기
-        </Link>
+        <FinishOnboardingForm label="나중에 시작하기" variant="outline" />
         <p className="text-sm text-muted-foreground">
           파일·CSV·직접 입력은 설정 완료 후 누락 내역을 보충할 때 사용할 수 있습니다.
         </p>
