@@ -1,35 +1,28 @@
 import Link from 'next/link'
 
 import { AuthCard } from '@/components/auth/AuthCard'
+import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button, buttonVariants } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { buttonVariants } from '@/components/ui/button'
 
-export default function ForgotPasswordPage() {
+interface ForgotPasswordPageProps {
+  searchParams: Promise<{ error?: string }>
+}
+
+export default async function ForgotPasswordPage({
+  searchParams,
+}: ForgotPasswordPageProps) {
+  const { error } = await searchParams
+
   return (
     <AuthCard title="비밀번호 재설정 요청">
-      <form className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="email">이메일</Label>
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            placeholder="가입 이메일을 입력하세요"
-          />
-        </div>
-        <Button type="submit" size="lg" className="w-full">
-          재설정 링크 받기
-        </Button>
-      </form>
-      <Alert>
-        <AlertTitle>안내</AlertTitle>
-        <AlertDescription>
-          등록된 이메일이라면 재설정 안내가 발송됩니다.
-        </AlertDescription>
-      </Alert>
+      {error === 'expired' && (
+        <Alert variant="destructive">
+          <AlertTitle>링크가 만료되었습니다</AlertTitle>
+          <AlertDescription>재설정 링크를 다시 받아주세요.</AlertDescription>
+        </Alert>
+      )}
+      <ForgotPasswordForm />
       <Link
         href="/login"
         className={buttonVariants({
