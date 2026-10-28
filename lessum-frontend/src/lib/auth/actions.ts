@@ -5,14 +5,14 @@ import { redirect } from 'next/navigation'
 
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
-import {
-  MIN_PASSWORD_LENGTH,
-  PRIVACY_VERSION,
-  TERMS_VERSION,
-} from './constants'
+import { PRIVACY_VERSION, TERMS_VERSION } from './constants'
 import type { AuthActionState } from './types'
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+import {
+  EMAIL_PATTERN,
+  validateEmail,
+  validatePassword,
+  validatePasswordConfirm,
+} from './validation'
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key)
@@ -30,13 +30,6 @@ async function getOrigin() {
     requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host')
   const protocol = requestHeaders.get('x-forwarded-proto') ?? 'http'
   return `${protocol}://${host}`
-}
-
-function validatePassword(password: string) {
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    return `비밀번호는 ${MIN_PASSWORD_LENGTH}자 이상이어야 합니다.`
-  }
-  return undefined
 }
 
 export async function login(
@@ -74,15 +67,20 @@ export async function signup(
   const values = { email }
   const fieldErrors: NonNullable<AuthActionState['fieldErrors']> = {}
 
-  if (!EMAIL_PATTERN.test(email)) {
-    fieldErrors.email = '올바른 이메일 형식이 아닙니다.'
+  const emailError = validateEmail(email)
+  if (emailError) {
+    fieldErrors.email = emailError
   }
   const passwordError = validatePassword(password)
   if (passwordError) {
     fieldErrors.password = passwordError
   }
-  if (password !== passwordConfirm) {
-    fieldErrors.passwordConfirm = '비밀번호 확인이 일치하지 않습니다.'
+  const passwordConfirmError = validatePasswordConfirm(
+    password,
+    passwordConfirm,
+  )
+  if (passwordConfirmError) {
+    fieldErrors.passwordConfirm = passwordConfirmError
   }
   if (Object.keys(fieldErrors).length > 0) {
     return { fieldErrors, values }
@@ -118,7 +116,7 @@ export async function signup(
   }
 
   if (data.user?.identities?.length === 0) {
-    return { fieldErrors: { email: '이미 가입된 이메일입니다.' }, values }
+    return { fieldErrors: { email: '사용할 수 없는 이메일입니다.' }, values }
   }
 
   redirect(`/signup/verify?email=${encodeURIComponent(email)}`)

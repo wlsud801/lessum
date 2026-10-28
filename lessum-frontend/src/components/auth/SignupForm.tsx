@@ -1,22 +1,66 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 
 import { FormAlert } from '@/components/auth/FormAlert'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { signup } from '@/lib/auth/actions'
 import { MIN_PASSWORD_LENGTH } from '@/lib/auth/constants'
+import {
+  validateEmail,
+  validatePassword,
+  validatePasswordConfirm,
+} from '@/lib/auth/validation'
+
+interface FormValues {
+  email: string
+  password: string
+  passwordConfirm: string
+}
 
 export function SignupForm() {
   const [state, formAction, isPending] = useActionState(signup, {})
-  const { fieldErrors } = state
+  const [values, setValues] = useState<FormValues>({
+    email: '',
+    password: '',
+    passwordConfirm: '',
+  })
+  const [submitted, setSubmitted] = useState<FormValues | null>(null)
+
+  const debounced = useDebouncedValue(values)
+
+  const handleChange =
+    (field: keyof FormValues) => (event: React.ChangeEvent<HTMLInputElement>) =>
+      setValues((prev) => ({ ...prev, [field]: event.target.value }))
+
+  const handleAction = (formData: FormData) => {
+    setSubmitted(values)
+    formAction(formData)
+  }
+
+  const getServerError = (field: keyof FormValues) =>
+    submitted && submitted[field] === values[field]
+      ? state.fieldErrors?.[field]
+      : undefined
+
+  const emailError =
+    (debounced.email ? validateEmail(debounced.email) : undefined) ??
+    getServerError('email')
+  const passwordError =
+    (debounced.password ? validatePassword(debounced.password) : undefined) ??
+    getServerError('password')
+  const passwordConfirmError =
+    (debounced.passwordConfirm
+      ? validatePasswordConfirm(debounced.password, debounced.passwordConfirm)
+      : undefined) ?? getServerError('passwordConfirm')
 
   return (
-    <form action={formAction} noValidate className="flex flex-col gap-4">
+    <form action={handleAction} noValidate className="flex flex-col gap-4">
       <FormAlert error={state.error} />
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email">이메일</Label>
@@ -26,14 +70,15 @@ export function SignupForm() {
           type="email"
           autoComplete="email"
           placeholder="email@example.com"
-          defaultValue={state.values?.email}
-          aria-invalid={!!fieldErrors?.email}
-          aria-describedby={fieldErrors?.email ? 'email-error' : undefined}
+          value={values.email}
+          onChange={handleChange('email')}
+          aria-invalid={!!emailError}
+          aria-describedby={emailError ? 'email-error' : undefined}
           required
         />
-        {fieldErrors?.email && (
+        {emailError && (
           <p id="email-error" className="text-xs text-destructive">
-            {fieldErrors.email}
+            {emailError}
           </p>
         )}
       </div>
@@ -45,15 +90,15 @@ export function SignupForm() {
           type="password"
           autoComplete="new-password"
           placeholder="비밀번호를 입력하세요"
-          aria-invalid={!!fieldErrors?.password}
-          aria-describedby={
-            fieldErrors?.password ? 'password-error' : undefined
-          }
+          value={values.password}
+          onChange={handleChange('password')}
+          aria-invalid={!!passwordError}
+          aria-describedby={passwordError ? 'password-error' : undefined}
           required
         />
-        {fieldErrors?.password ? (
+        {passwordError ? (
           <p id="password-error" className="text-xs text-destructive">
-            {fieldErrors.password}
+            {passwordError}
           </p>
         ) : (
           <p className="text-xs text-muted-foreground">
@@ -69,15 +114,17 @@ export function SignupForm() {
           type="password"
           autoComplete="new-password"
           placeholder="같은 비밀번호를 다시 입력하세요"
-          aria-invalid={!!fieldErrors?.passwordConfirm}
+          value={values.passwordConfirm}
+          onChange={handleChange('passwordConfirm')}
+          aria-invalid={!!passwordConfirmError}
           aria-describedby={
-            fieldErrors?.passwordConfirm ? 'passwordConfirm-error' : undefined
+            passwordConfirmError ? 'passwordConfirm-error' : undefined
           }
           required
         />
-        {fieldErrors?.passwordConfirm && (
+        {passwordConfirmError && (
           <p id="passwordConfirm-error" className="text-xs text-destructive">
-            {fieldErrors.passwordConfirm}
+            {passwordConfirmError}
           </p>
         )}
       </div>
@@ -103,12 +150,7 @@ export function SignupForm() {
           </Label>
         </div>
       </div>
-      <Button
-        type="submit"
-        size="lg"
-        className="w-[210px]"
-        disabled={isPending}
-      >
+      <Button type="submit" size="lg" className="w-52.5" disabled={isPending}>
         가입하기
       </Button>
     </form>
