@@ -1,34 +1,32 @@
 import { Router } from 'express'
-import { rateLimit } from 'express-rate-limit'
 
 import { ApiError } from '../lib/errors.js'
 import {
   MAX_APP_PASSWORD_LENGTH,
   isNaverEmail,
+  listNaverMailboxes,
   verifyNaverLogin,
 } from '../lib/naver-imap.js'
 import { requireAuth } from '../middleware/auth.js'
+import { userRateLimit } from '../middleware/user-rate-limit.js'
 import {
   assertNotActivelyConnected,
+  getConnectionCredentials,
   savePendingConnection,
 } from '../services/mail-connections.js'
 
 export const mailConnectionsRouter = Router()
 
-const verifyRateLimit = rateLimit({
-  windowMs: 10 * 60_000,
+const verifyRateLimit = userRateLimit({
   limit: 5,
-  keyGenerator: (req) => req.user!.id,
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: (_req, _res, next) =>
-    next(
-      new ApiError(
-        429,
-        'MAIL_VERIFY_RATE_LIMITED',
-        '연결 확인 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.',
-      ),
-    ),
+  code: 'MAIL_VERIFY_RATE_LIMITED',
+  message: '연결 확인 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.',
+})
+
+const mailboxesRateLimit = userRateLimit({
+  limit: 10,
+  code: 'MAIL_MAILBOXES_RATE_LIMITED',
+  message: '메일함 조회 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.',
 })
 
 mailConnectionsRouter.post(
@@ -68,6 +66,24 @@ mailConnectionsRouter.post(
       )
 
       res.json({ ...connection, status: 'pending' })
+    } catch (error) {
+      next(error)
+    }
+  },
+)
+
+mailConnectionsRouter.get(
+  '/mailboxes',
+  requireAuth,
+  mailboxesRateLimit,
+  async (req, res, next) => {
+    try {
+      const { email, appPassword } = await getConnectionCredentials(
+        req.user!.id,
+      )
+      const mailboxes = await listNaverMailboxes(email, appPassword)
+
+      res.json({ mailboxes })
     } catch (error) {
       next(error)
     }
