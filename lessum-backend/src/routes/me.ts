@@ -30,9 +30,32 @@ meRouter.get('/', requireAuth, async (req, res, next) => {
     res.json({
       id: userId,
       email: req.user!.email,
+      is_first_login: profile.data.onboarded_at === null,
       profile: profile.data,
       consents: consents.data,
     })
+  } catch (error) {
+    next(error)
+  }
+})
+
+meRouter.post('/onboarding/complete', requireAuth, async (req, res, next) => {
+  try {
+    const { error } = await supabaseAdmin
+      .from('profiles')
+      .update({ onboarded_at: new Date().toISOString() })
+      .eq('id', req.user!.id)
+      .is('onboarded_at', null)
+
+    if (error) {
+      throw new ApiError(
+        500,
+        'ONBOARDING_COMPLETE_FAILED',
+        '온보딩 완료 처리에 실패했습니다.',
+      )
+    }
+
+    res.status(204).end()
   } catch (error) {
     next(error)
   }
