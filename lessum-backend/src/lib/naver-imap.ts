@@ -14,6 +14,7 @@ const KNOWN_RESPONSE_CODES = [
   'PRIVACYREQUIRED',
   'EXPIRED',
 ]
+const MAX_MAILBOX_COUNT = 2000
 const CONNECTION_CLOSED_CODES = [
   'NoConnection',
   'EConnectionClosed',
@@ -28,10 +29,25 @@ export interface ImapLoginClient {
   on(event: 'error', listener: (error: unknown) => void): unknown
 }
 
-export type ImapClientFactory = (
+export interface ImapListEntry {
+  path: string
+  pathAsListed: string
+  flags: Set<string>
+}
+
+export interface ImapListClient extends ImapLoginClient {
+  list(options?: { listOnly?: boolean }): Promise<ImapListEntry[]>
+}
+
+export type ImapClientFactory<T extends ImapLoginClient = ImapLoginClient> = (
   email: string,
   appPassword: string,
-) => ImapLoginClient
+) => T
+
+export interface MailboxInfo {
+  name: string
+  imap_name: string
+}
 
 interface ImapErrorLike {
   code?: string
@@ -44,7 +60,7 @@ export function isNaverEmail(value: string): boolean {
   return NAVER_EMAIL_PATTERN.test(value)
 }
 
-const createImapClient: ImapClientFactory = (email, appPassword) =>
+const createImapClient = (email: string, appPassword: string) =>
   new ImapFlow({
     host: NAVER_IMAP_HOST,
     port: NAVER_IMAP_PORT,
@@ -160,5 +176,47 @@ export async function verifyNaverLogin(
     await client.logout()
   } catch {
     client.close()
+  }
+}
+
+export async function listNaverMailboxes(
+  email: string,
+  appPassword: string,
+  createClient: ImapClientFactory<ImapListClient> = createImapClient,
+): Promise<MailboxInfo[]> {
+  const client = createClient(email, appPassword)
+  client.on('error', () => undefined)
+
+  try {
+    await client.connect()
+  } catch (error) {
+    client.close()
+    throw classifyLoginError(error)
+  }
+
+  try {
+    const entries = await client.list({ listOnly: true })
+    if (entries.length > MAX_MAILBOX_COUNT) {
+      throw new Error('mailbox list too large')
+    }
+
+    return entries
+      .filter(
+        (entry) =>
+          ![...entry.flags].some((flag) => flag.toLowerCase() === '\\noselect'),
+      )
+      .map((entry) => ({ name: entry.path, imap_name: entry.pathAsListed }))
+  } catch {
+    throw new ApiError(
+      502,
+      'MAIL_MAILBOX_LIST_FAILED',
+      '로그인은 성공했지만 메일함 목록 요청이 실패했습니다. 메일 본문은 읽지 않았습니다.',
+    )
+  } finally {
+    try {
+      await client.logout()
+    } catch {
+      client.close()
+    }
   }
 }

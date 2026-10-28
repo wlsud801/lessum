@@ -1,5 +1,5 @@
 import { env } from '../config/env.js'
-import { encryptSecret } from '../lib/crypto.js'
+import { decryptSecret, encryptSecret } from '../lib/crypto.js'
 import { ApiError } from '../lib/errors.js'
 import { supabaseAdmin } from '../lib/supabase.js'
 
@@ -7,6 +7,66 @@ export const PENDING_CONNECTION_TTL_MS = 30 * 60 * 1000
 
 export const mailAppPasswordContext = (userId: string) =>
   `${userId}:mail-app-password`
+
+async function loadConnection(userId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('mail_connections')
+    .select('email, app_password_encrypted, status, expires_at')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (error) {
+    throw new ApiError(
+      500,
+      'MAIL_CONNECTION_LOAD_FAILED',
+      '메일 연결 정보를 불러오지 못했습니다.',
+    )
+  }
+  if (!data) {
+    throw new ApiError(
+      404,
+      'MAIL_NOT_CONNECTED',
+      '연결된 메일이 없습니다. 메일 연결을 먼저 진행해주세요.',
+    )
+  }
+  if (
+    data.status === 'pending' &&
+    data.expires_at &&
+    new Date(data.expires_at).getTime() <= Date.now()
+  ) {
+    throw new ApiError(
+      410,
+      'MAIL_CONNECTION_EXPIRED',
+      '메일 연결 확인 시간이 지났습니다. 메일 연결 단계에서 다시 확인해주세요.',
+    )
+  }
+  return data
+}
+
+export async function assertConnectionUsable(userId: string) {
+  await loadConnection(userId)
+}
+
+export async function getConnectionCredentials(userId: string) {
+  const connection = await loadConnection(userId)
+
+  try {
+    return {
+      email: connection.email,
+      appPassword: decryptSecret(
+        env.credentialEncryptionKey,
+        connection.app_password_encrypted,
+        mailAppPasswordContext(userId),
+      ),
+    }
+  } catch {
+    throw new ApiError(
+      500,
+      'MAIL_CREDENTIAL_UNREADABLE',
+      '저장된 메일 연결 정보를 읽지 못했습니다. 메일 연결을 다시 진행해주세요.',
+    )
+  }
+}
 
 export async function assertNotActivelyConnected(userId: string) {
   const { data, error } = await supabaseAdmin

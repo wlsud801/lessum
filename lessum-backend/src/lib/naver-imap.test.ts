@@ -5,7 +5,10 @@ import { ApiError } from './errors.js'
 import {
   classifyLoginError,
   isNaverEmail,
+  listNaverMailboxes,
   verifyNaverLogin,
+  type ImapListClient,
+  type ImapListEntry,
   type ImapLoginClient,
 } from './naver-imap.js'
 
@@ -171,5 +174,121 @@ describe('verifyNaverLogin', () => {
     await verifyNaverLogin('a@naver.com', 'pw', () => client)
 
     assert.deepEqual(calls, ['on:error', 'connect', 'logout', 'close'])
+  })
+})
+
+describe('listNaverMailboxes', () => {
+  const entry = (
+    path: string,
+    pathAsListed: string,
+    flags: string[] = [],
+  ): ImapListEntry => ({ path, pathAsListed, flags: new Set(flags) })
+
+  function fakeListClient(options: {
+    connect?: () => Promise<void>
+    list?: () => Promise<ImapListEntry[]>
+  }) {
+    const calls: string[] = []
+    const client: ImapListClient = {
+      connect: async () => {
+        calls.push('connect')
+        await options.connect?.()
+      },
+      list: async (listOptions) => {
+        calls.push(`list:${JSON.stringify(listOptions)}`)
+        return options.list ? options.list() : []
+      },
+      logout: async () => {
+        calls.push('logout')
+      },
+      close: () => {
+        calls.push('close')
+      },
+      on: () => undefined,
+    }
+    return { client, calls }
+  }
+
+  it('디코딩된 이름과 원본 이름을 함께 반환한다', async () => {
+    const { client } = fakeListClient({
+      list: async () => [
+        entry('INBOX', 'INBOX'),
+        entry('청구·결제', '&zK2tbAC3rLDIHA-'),
+      ],
+    })
+
+    const mailboxes = await listNaverMailboxes('a@naver.com', 'pw', () => client)
+
+    assert.deepEqual(mailboxes, [
+      { name: 'INBOX', imap_name: 'INBOX' },
+      { name: '청구·결제', imap_name: '&zK2tbAC3rLDIHA-' },
+    ])
+  })
+
+  it('선택할 수 없는 메일함은 제외한다', async () => {
+    const { client } = fakeListClient({
+      list: async () => [
+        entry('INBOX', 'INBOX', ['\\HasNoChildren']),
+        entry('Folders', 'Folders', ['\\Noselect', '\\HasChildren']),
+        entry('Hidden', 'Hidden', ['\\NOSELECT']),
+      ],
+    })
+
+    const mailboxes = await listNaverMailboxes('a@naver.com', 'pw', () => client)
+
+    assert.deepEqual(
+      mailboxes.map((mailbox) => mailbox.name),
+      ['INBOX'],
+    )
+  })
+
+  it('LIST만 요청하고 메일함을 열거나 메일을 읽는 명령은 보내지 않는다', async () => {
+    const { client, calls } = fakeListClient({})
+
+    await listNaverMailboxes('a@naver.com', 'pw', () => client)
+
+    assert.deepEqual(calls, ['connect', 'list:{"listOnly":true}', 'logout'])
+  })
+
+  it('로그인에 실패하면 분류된 오류를 던지고 연결을 닫는다', async () => {
+    const { client, calls } = fakeListClient({
+      connect: async () => {
+        throw imapError({ authenticationFailed: true, serverResponseCode: 'AUTHENTICATIONFAILED' })
+      },
+    })
+
+    await assert.rejects(
+      listNaverMailboxes('a@naver.com', 'pw', () => client),
+      (error: unknown) => error instanceof ApiError && error.code === 'MAIL_AUTH_REJECTED',
+    )
+    assert.deepEqual(calls, ['connect', 'close'])
+  })
+
+  it('목록 요청이 실패해도 로그아웃하고 원문 오류는 노출하지 않는다', async () => {
+    const { client, calls } = fakeListClient({
+      list: async () => {
+        throw new Error(RAW_SERVER_TEXT)
+      },
+    })
+
+    await assert.rejects(
+      listNaverMailboxes('a@naver.com', 'pw', () => client),
+      (error: unknown) =>
+        error instanceof ApiError &&
+        error.code === 'MAIL_MAILBOX_LIST_FAILED' &&
+        !error.message.includes(RAW_SERVER_TEXT),
+    )
+    assert.ok(calls.includes('logout'))
+  })
+
+  it('메일함이 비정상적으로 많으면 거부한다', async () => {
+    const { client } = fakeListClient({
+      list: async () => Array.from({ length: 2001 }, (_, i) => entry(`F${i}`, `F${i}`)),
+    })
+
+    await assert.rejects(
+      listNaverMailboxes('a@naver.com', 'pw', () => client),
+      (error: unknown) => error instanceof ApiError && error.code === 'MAIL_MAILBOX_LIST_FAILED',
+    )
   })
 })
