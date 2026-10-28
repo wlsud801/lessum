@@ -17,6 +17,7 @@
     "@supabase/supabase-js": "^2.118.0",
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",
+    "domhandler": "^5.0.3",
     "dotenv": "^18.0.9",
     "entities": "^8.1.0",
     "exceljs": "^4.4.0",
