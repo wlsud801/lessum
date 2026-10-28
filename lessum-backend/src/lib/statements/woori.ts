@@ -4,12 +4,12 @@ import {
   finish,
   record,
   statementContext,
-  type StatementResult,
+  type CardStatementResult,
   type TransactionRecord,
 } from './statement.js'
 import { amount } from './text.js'
 
-export function parseWoori(text: string): StatementResult {
+export function parseWoori(text: string): CardStatementResult {
   const context = statementContext(text)
   const $ = loadDocument(text)
   const table = findTable($, '이용일자', '이용가맹점', '납부하실금액')

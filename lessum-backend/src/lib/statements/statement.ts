@@ -4,8 +4,8 @@ import { clean, parseDate, type DateBasis, type DateContext } from './text.js'
 import { isValidDateString } from '../collect-schedule.js'
 
 export interface StatementContext {
-  payment_date: string
-  statement_month: string
+  payment_date: string | null
+  statement_month: string | null
 }
 
 export type TransactionKind =
@@ -34,6 +34,10 @@ export interface TransactionRecord {
   benefit_text?: string
   card_label?: string
   payable_krw?: number | null
+  section?: string
+  billed_amount_krw?: number | null
+  benefits?: { label: string; amount_krw: number | null }[]
+  billed_components_match?: boolean
   source_row_id?: string
 }
 
@@ -46,6 +50,9 @@ export type RecordExtras = Partial<
     | 'benefit_text'
     | 'card_label'
     | 'payable_krw'
+    | 'section'
+    | 'billed_amount_krw'
+    | 'benefits'
   >
 >
 
@@ -64,6 +71,37 @@ export interface FinishValidation {
   purchase_count_matches?: boolean
 }
 
+export interface SamsungSectionCheck {
+  row_count: number
+  benefit_continuation_rows?: number
+  billed_principal_krw?: number
+  fee_krw?: number
+  declared_principal_krw?: number | null
+  declared_fees_krw?: number | null
+  billed_amount_krw?: number
+  declared_billed_amount_krw?: number | null
+  amount_matches: boolean
+  expected_count_from_html?: number | null
+  count_matches?: boolean
+}
+
+export interface SamsungValidation {
+  complete: boolean
+  row_count: number
+  review_row_count: number
+  sections: Record<string, SamsungSectionCheck>
+  card_summary_total_krw: number
+  card_summary_matches: boolean
+  source_counts_match: boolean
+  comparison_excerpt_matches: boolean
+  statement_total_matches: boolean
+  foreign_reference_count: number
+  linked_foreign_references: number
+  foreign_components_match: boolean
+  cancellation_reference_count: number
+  cancellation_count_matches?: boolean
+}
+
 export type StatementStatus =
   | 'parsed'
   | 'needs_review'
@@ -76,7 +114,7 @@ export interface StatementResult {
   transactions: TransactionRecord[]
   references: Record<string, unknown>[]
   warnings: string[]
-  validation?: FinishValidation
+  validation?: FinishValidation | SamsungValidation
   issuer?: string
   parser_version?: string
   source_format?: string
@@ -86,6 +124,10 @@ export interface StatementResult {
 
 const PAYMENT_DATE_PATTERN =
   /(?:결제일|출금일)\s*[:：]?\s*(20\d{2})년\s*(\d{1,2})월\s*(\d{1,2})일/
+
+export type CardStatementResult = StatementResult & {
+  validation: FinishValidation
+}
 
 export function statementContext(text: string): StatementContext {
   const match = PAYMENT_DATE_PATTERN.exec(visibleText(text))
@@ -159,7 +201,7 @@ export function finish(
   fees: number,
   skipped: number,
   declaredFee: number | null = null,
-): StatementResult & { validation: FinishValidation } {
+): CardStatementResult {
   if (rows.length === 0) {
     throw new StatementFormatError(
       'No verified transaction rows; unsupported or empty statement',

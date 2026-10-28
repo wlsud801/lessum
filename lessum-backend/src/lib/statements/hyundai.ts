@@ -9,7 +9,7 @@ import {
   finish,
   record,
   statementContext,
-  type StatementResult,
+  type CardStatementResult,
   type TransactionRecord,
 } from './statement.js'
 import { amount, clean } from './text.js'
@@ -129,7 +129,7 @@ export function hyundaiData(text: string): string[][] {
   return values
 }
 
-export function parseHyundai(text: string): StatementResult {
+export function parseHyundai(text: string): CardStatementResult {
   const context = statementContext(text)
   const rows: TransactionRecord[] = []
   let declared: number | null = null

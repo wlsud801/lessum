@@ -10,12 +10,12 @@ import {
   finish,
   record,
   statementContext,
-  type StatementResult,
+  type CardStatementResult,
   type TransactionRecord,
 } from './statement.js'
 import { amount, clean } from './text.js'
 
-export function parseLotte(text: string): StatementResult {
+export function parseLotte(text: string): CardStatementResult {
   const context = statementContext(text)
   const $ = loadDocument(text)
   const table = findTable($, '이용내역', '이용총액', '할부회차')
