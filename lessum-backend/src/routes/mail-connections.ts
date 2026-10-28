@@ -9,6 +9,7 @@ import {
 } from '../lib/naver-imap.js'
 import { requireAuth } from '../middleware/auth.js'
 import { userRateLimit } from '../middleware/user-rate-limit.js'
+import { disconnectMail } from '../services/auto-register.js'
 import {
   assertNotActivelyConnected,
   getConnectionCredentials,
@@ -89,3 +90,13 @@ mailConnectionsRouter.get(
     }
   },
 )
+
+mailConnectionsRouter.delete('/', requireAuth, async (req, res, next) => {
+  try {
+    await disconnectMail(req.user!.id)
+
+    res.status(204).end()
+  } catch (error) {
+    next(error)
+  }
+})

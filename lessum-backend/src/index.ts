@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit'
 
 import { env } from './config/env.js'
 import { errorHandler } from './middleware/error-handler.js'
+import { autoRegisterRouter } from './routes/auto-register.js'
 import { cardIssuersRouter } from './routes/card-issuers.js'
 import { collectSettingsRouter } from './routes/collect-settings.js'
 import { mailConnectionsRouter } from './routes/mail-connections.js'
@@ -23,6 +24,7 @@ app.use('/me', meRouter)
 app.use('/mail-connections', mailConnectionsRouter)
 app.use('/card-issuers', cardIssuersRouter)
 app.use('/collect-settings', collectSettingsRouter)
+app.use('/auto-register', autoRegisterRouter)
 
 app.use(errorHandler)
 
