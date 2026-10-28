@@ -1,6 +1,5 @@
 import 'dotenv/config'
 
-import { deepStrictEqual } from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -8,7 +7,7 @@ import { resolve } from 'node:path'
 import { ImapFlow } from 'imapflow'
 
 import { parseEmail } from '../src/lib/statements/email.js'
-import type { StatementResult } from '../src/lib/statements/statement.js'
+import { compareResults, describeMismatch } from './compare-utils.js'
 
 const PASSWORD_ENV: Record<string, string | null> = {
   lotte: null,
@@ -43,48 +42,6 @@ const reference = JSON.parse(readFileSync(REFERENCE, 'utf8')) as Json & {
 }
 const target = reference.collection.mailbox
 
-function differs(actual: unknown, expected: unknown): boolean {
-  try {
-    deepStrictEqual(actual, expected)
-    return false
-  } catch {
-    return true
-  }
-}
-
-function compare(actual: StatementResult) {
-  const mine = JSON.parse(JSON.stringify(actual)) as Json & { transactions: Json[] }
-  const topLevel = [
-    'status',
-    'context',
-    'references',
-    'warnings',
-    'validation',
-    'issuer',
-    'source_format',
-    'source_sha256',
-    'attachment_sha256',
-  ]
-  const topMismatch = topLevel.filter((key) => differs(mine[key], reference[key]))
-
-  const rowMismatch = new Map<string, number>()
-  const rowCount = Math.max(mine.transactions.length, reference.transactions.length)
-  for (let i = 0; i < rowCount; i++) {
-    const a = mine.transactions[i]
-    const b = reference.transactions[i]
-    if (!a || !b) {
-      rowMismatch.set('(행 누락)', (rowMismatch.get('(행 누락)') ?? 0) + 1)
-      continue
-    }
-    for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
-      if (differs(a[key], b[key])) {
-        rowMismatch.set(key, (rowMismatch.get(key) ?? 0) + 1)
-      }
-    }
-  }
-  return { topMismatch, rowMismatch, rows: [mine.transactions.length, reference.transactions.length] }
-}
-
 const client = new ImapFlow({
   host: 'imap.naver.com',
   port: 993,
@@ -117,19 +74,14 @@ try {
           }`,
         )
         const result = await parseEmail(message.source, issuer, statementPassword)
-        const { topMismatch, rowMismatch, rows } = compare(result)
+        const comparison = compareResults(result, reference)
+        const summary = describeMismatch(comparison)
         console.log(`[3] ${issuer}: TypeScript 파서 결과 vs Python 결과`)
         console.log(`  상태: ${result.status} (Python: ${reference.status})`)
-        console.log(`  거래 행 수: ${rows[0]} (Python: ${rows[1]})`)
-        console.log(`  최상위 필드 불일치: ${topMismatch.length ? topMismatch.join(', ') : '없음'}`)
-        console.log(
-          `  행 필드 불일치: ${
-            rowMismatch.size
-              ? [...rowMismatch].map(([key, count]) => `${key}(${count}행)`).join(', ')
-              : '없음 (모든 행의 모든 필드 일치, source_row_id 포함)'
-          }`,
-        )
-        process.exitCode = topMismatch.length || rowMismatch.size ? 2 : 0
+        console.log(`  거래 행 수: ${comparison.rows[0]} (Python: ${comparison.rows[1]})`)
+        console.log(`  최상위 필드 불일치: ${summary.top}`)
+        console.log(`  행 필드 불일치: ${summary.rows}`)
+        process.exitCode = summary.failed ? 2 : 0
       }
     }
   } finally {
