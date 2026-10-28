@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit'
 
 import { env } from './config/env.js'
 import { errorHandler } from './middleware/error-handler.js'
+import { mailConnectionsRouter } from './routes/mail-connections.js'
 import { meRouter } from './routes/me.js'
 
 const app = express()
@@ -17,6 +18,7 @@ app.get('/health', (_req, res) => {
 })
 
 app.use('/me', meRouter)
+app.use('/mail-connections', mailConnectionsRouter)
 
 app.use(errorHandler)
 
