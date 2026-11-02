@@ -1,24 +1,34 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { startTransition, useActionState, useState } from 'react'
 
+import { FormAlert } from '@/components/auth/FormAlert'
 import { NoticeBox } from '@/components/onboarding/NoticeBox'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect } from '@/components/ui/native-select'
+import { saveCollectSettings } from '@/lib/onboarding/actions'
+import {
+  formatDisplayDate,
+  nextCollectDate,
+  todayInKst,
+} from '@/lib/onboarding/collect-schedule'
+import type {
+  ArrivalDay,
+  CardIssuer,
+  CollectSettingsPayload,
+  Mailbox,
+} from '@/lib/onboarding/types'
 
-interface CardSetting {
-  id: string
-  name: string
-  isSupported: boolean
-  arrivalDay: string
-  nextCollectDate: string
+interface CollectSettingsFormProps {
+  email: string
+  mailboxes: Mailbox[]
+  issuers: CardIssuer[]
 }
 
-const MAILBOXES = ['카드명세서', 'INBOX']
 const ARRIVAL_DAYS = [
   ...Array.from({ length: 31 }, (_, index) => ({
     value: String(index + 1),
@@ -27,24 +37,35 @@ const ARRIVAL_DAYS = [
   { value: 'last', label: '매월 말일' },
 ]
 
-const DUMMY_CARDS: CardSetting[] = [
-  { id: 'hyundai', name: '현대', isSupported: true, arrivalDay: '25', nextCollectDate: '2026.10.25' },
-  { id: 'lotte', name: '롯데', isSupported: true, arrivalDay: '20', nextCollectDate: '2026.11.20' },
-  { id: 'woori', name: '우리', isSupported: true, arrivalDay: '26', nextCollectDate: '2026.10.26' },
-  { id: 'samsung', name: '삼성', isSupported: true, arrivalDay: 'last', nextCollectDate: '2026.10.31' },
-  { id: 'shinhan', name: '신한', isSupported: false, arrivalDay: '', nextCollectDate: '' },
-]
-
 const CELL_CLASS = 'px-2.5 py-1.5 text-sm'
 
-export function CollectSettingsForm() {
-  const [mailbox, setMailbox] = useState(MAILBOXES[0])
-  const [startDate, setStartDate] = useState('2026.10.01')
-  const [cards, setCards] = useState(DUMMY_CARDS)
-  const [selectedIds, setSelectedIds] = useState<string[]>(
-    DUMMY_CARDS.filter((card) => card.isSupported).map((card) => card.id),
+function toArrivalDay(value: string): ArrivalDay {
+  return value === 'last' ? 'last' : Number(value)
+}
+
+export function CollectSettingsForm({
+  email,
+  mailboxes,
+  issuers,
+}: CollectSettingsFormProps) {
+  const [today] = useState(() => todayInKst())
+  const [mailboxImapName, setMailboxImapName] = useState(
+    mailboxes[0]?.imap_name ?? '',
   )
-  const [statementPassword, setStatementPassword] = useState('')
+  const [startDate, setStartDate] = useState(`${today.slice(0, 8)}01`)
+  const [selectedIds, setSelectedIds] = useState<string[]>(
+    issuers.filter((issuer) => issuer.supported).map((issuer) => issuer.id),
+  )
+  const [arrivalDays, setArrivalDays] = useState<Record<string, string>>({})
+  const [passwords, setPasswords] = useState<Record<string, string>>({})
+  const [state, dispatch, isPending] = useActionState(saveCollectSettings, {})
+
+  const passwordIssuers = issuers.filter(
+    (issuer) =>
+      issuer.needs_statement_password && selectedIds.includes(issuer.id),
+  )
+  const canSubmit =
+    selectedIds.length > 0 && mailboxImapName !== '' && startDate !== ''
 
   const handleToggleCard = (id: string, checked: boolean) => {
     setSelectedIds((prev) =>
@@ -53,20 +74,36 @@ export function CollectSettingsForm() {
   }
 
   const handleChangeArrivalDay = (id: string, arrivalDay: string) => {
-    // TODO : 도착 예정일에 맞춰 다음 자동 조회일 재계산
-    setCards((prev) =>
-      prev.map((card) => (card.id === id ? { ...card, arrivalDay } : card)),
-    )
+    setArrivalDays((prev) => ({ ...prev, [id]: arrivalDay }))
   }
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    // TODO : 수집 설정 저장 API 호출 후 자동 등록 단계로 이동
+    const payload: CollectSettingsPayload = {
+      mailboxImapName,
+      startDate,
+      cards: issuers
+        .filter((issuer) => selectedIds.includes(issuer.id))
+        .map((issuer) => {
+          const password = passwords[issuer.id]
+          return {
+            issuer: issuer.id,
+            arrivalDay: toArrivalDay(arrivalDays[issuer.id] ?? 'last'),
+            ...(issuer.needs_statement_password && password
+              ? { statementPassword: password }
+              : {}),
+          }
+        }),
+    }
+    startTransition(() => {
+      dispatch(payload)
+    })
   }
 
   return (
     <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
-      <NoticeBox lines={['메일 연결 성공 · example@naver.com']} />
+      <NoticeBox lines={[`메일 연결 성공 · ${email}`]} />
+      <FormAlert error={state.error} />
       <div className="flex gap-3">
         <div className="flex flex-1 flex-col gap-1.5">
           <Label htmlFor="mailbox" className="font-bold">
@@ -76,12 +113,12 @@ export function CollectSettingsForm() {
             id="mailbox"
             name="mailbox"
             className="h-11"
-            value={mailbox}
-            onChange={(event) => setMailbox(event.target.value)}
+            value={mailboxImapName}
+            onChange={(event) => setMailboxImapName(event.target.value)}
           >
-            {MAILBOXES.map((itRow) => (
-              <option key={itRow} value={itRow}>
-                {itRow}
+            {mailboxes.map((itRow) => (
+              <option key={itRow.imap_name} value={itRow.imap_name}>
+                {itRow.name}
               </option>
             ))}
           </NativeSelect>
@@ -93,7 +130,8 @@ export function CollectSettingsForm() {
           <Input
             id="startDate"
             name="startDate"
-            placeholder="2026.10.01"
+            type="date"
+            max={today}
             className="h-11"
             value={startDate}
             onChange={(event) => setStartDate(event.target.value)}
@@ -124,33 +162,34 @@ export function CollectSettingsForm() {
             </tr>
           </thead>
           <tbody>
-            {cards.map((card) => {
-              const isSelected = selectedIds.includes(card.id)
+            {issuers.map((issuer) => {
+              const isSelected = selectedIds.includes(issuer.id)
+              const arrivalDay = arrivalDays[issuer.id] ?? 'last'
               return (
-                <tr key={card.id} className="align-top">
+                <tr key={issuer.id} className="align-top">
                   <td className={CELL_CLASS}>
-                    {card.isSupported ? (
+                    {issuer.supported ? (
                       <Checkbox
-                        aria-label={`${card.name} 선택`}
+                        aria-label={`${issuer.name} 선택`}
                         checked={isSelected}
                         onCheckedChange={(checked) =>
-                          handleToggleCard(card.id, checked)
+                          handleToggleCard(issuer.id, checked)
                         }
                       />
                     ) : (
                       '—'
                     )}
                   </td>
-                  <td className={CELL_CLASS}>{card.name}</td>
+                  <td className={CELL_CLASS}>{issuer.name}</td>
                   <td className={CELL_CLASS}>
-                    {card.isSupported ? (
+                    {issuer.supported ? (
                       <NativeSelect
-                        aria-label={`${card.name} 도착 예정일`}
+                        aria-label={`${issuer.name} 도착 예정일`}
                         className="h-11"
-                        value={card.arrivalDay}
+                        value={arrivalDay}
                         disabled={!isSelected}
                         onChange={(event) =>
-                          handleChangeArrivalDay(card.id, event.target.value)
+                          handleChangeArrivalDay(issuer.id, event.target.value)
                         }
                       >
                         {ARRIVAL_DAYS.map((itDay) => (
@@ -164,7 +203,11 @@ export function CollectSettingsForm() {
                     )}
                   </td>
                   <td className={CELL_CLASS}>
-                    {card.isSupported && isSelected ? card.nextCollectDate : '—'}
+                    {issuer.supported && isSelected
+                      ? formatDisplayDate(
+                          nextCollectDate(toArrivalDay(arrivalDay), today),
+                        )
+                      : '—'}
                   </td>
                 </tr>
               )
@@ -178,24 +221,38 @@ export function CollectSettingsForm() {
           '도착일은 1~31일 또는 말일로 선택합니다. 해당 날짜가 없는 달은 말일에 조회합니다.',
         ]}
       />
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="statementPassword" className="font-bold">
-          선택한 카드의 명세서 암호 (필요한 경우)
-        </Label>
-        <Input
-          id="statementPassword"
-          name="statementPassword"
-          type="password"
-          autoComplete="off"
-          placeholder="삼성 명세서 열기 암호 · 새 입력"
-          className="h-11"
-          value={statementPassword}
-          onChange={(event) => setStatementPassword(event.target.value)}
-        />
-        <p className="text-xs text-muted-foreground">
-          메일 앱 비밀번호와 다른 암호입니다. 필요한 카드에만 입력받습니다.
-        </p>
-      </div>
+      {passwordIssuers.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <h2 className="text-lg font-bold">
+            선택한 카드의 명세서 암호 (필요한 경우)
+          </h2>
+          {passwordIssuers.map((issuer) => (
+            <div key={issuer.id} className="flex flex-col gap-1.5">
+              <Label htmlFor={`statementPassword-${issuer.id}`} className="font-bold">
+                {issuer.name} 명세서 열기 암호
+              </Label>
+              <Input
+                id={`statementPassword-${issuer.id}`}
+                name={`statementPassword-${issuer.id}`}
+                type="password"
+                autoComplete="off"
+                placeholder={`${issuer.name} 명세서 열기 암호를 입력하세요`}
+                className="h-11"
+                value={passwords[issuer.id] ?? ''}
+                onChange={(event) =>
+                  setPasswords((prev) => ({
+                    ...prev,
+                    [issuer.id]: event.target.value,
+                  }))
+                }
+              />
+            </div>
+          ))}
+          <p className="text-xs text-muted-foreground">
+            메일 앱 비밀번호와 다른 암호입니다. 필요한 카드에만 입력받습니다.
+          </p>
+        </div>
+      )}
       <div className="flex gap-3">
         <Button
           variant="outline"
@@ -208,9 +265,9 @@ export function CollectSettingsForm() {
         <Button
           type="submit"
           className="h-11 w-[300px] font-bold"
-          disabled={selectedIds.length === 0}
+          disabled={!canSubmit || isPending}
         >
-          자동 등록 설정으로
+          {isPending ? '수집 설정 저장 중…' : '자동 등록 설정으로'}
         </Button>
       </div>
     </form>

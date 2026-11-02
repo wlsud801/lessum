@@ -1,11 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useActionState, useState } from 'react'
 
+import { FormAlert } from '@/components/auth/FormAlert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { connectNaverMail } from '@/lib/onboarding/actions'
 
 const GUIDE_STEPS = [
   [
@@ -22,16 +24,13 @@ const GUIDE_STEPS = [
 export function NaverMailConnectForm() {
   const [email, setEmail] = useState('')
   const [appPassword, setAppPassword] = useState('')
+  const [state, formAction, isPending] = useActionState(connectNaverMail, {})
 
   const isFilled = email.trim() !== '' && appPassword !== ''
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    // TODO : 메일 연결 확인 API 호출 후 성공 시 수집 설정 단계로 이동
-  }
-
   return (
-    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+    <form action={formAction} noValidate className="flex flex-col gap-4">
+      <FormAlert error={state.error} />
       <section className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-5">
         <h2 className="text-[17px] font-bold">연결 전에 준비해주세요</h2>
         <ol className="flex flex-col gap-0.5 text-[15px] text-muted-foreground">
@@ -93,9 +92,9 @@ export function NaverMailConnectForm() {
         <Button
           type="submit"
           className="h-11 w-[300px] font-bold"
-          disabled={!isFilled}
+          disabled={!isFilled || isPending}
         >
-          연결 확인 후 다음
+          {isPending ? '메일 서버에 연결 확인 중…' : '연결 확인 후 다음'}
         </Button>
       </div>
     </form>
