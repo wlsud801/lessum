@@ -18,6 +18,10 @@ export async function GET(request: NextRequest) {
   )
 
   if (!tokenHash || !type) {
+    console.log(
+      '[auth/confirm] token_hash/type 누락, 수신 쿼리:',
+      request.nextUrl.search,
+    )
     return NextResponse.redirect(failureUrl)
   }
 
@@ -27,6 +31,7 @@ export async function GET(request: NextRequest) {
     token_hash: tokenHash,
   })
   if (error) {
+    console.log('[auth/confirm] verifyOtp 실패:', error.code, error.message)
     return NextResponse.redirect(failureUrl)
   }
 
