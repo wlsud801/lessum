@@ -6,9 +6,12 @@ import { env } from './config/env.js'
 import { errorHandler } from './middleware/error-handler.js'
 import { autoRegisterRouter } from './routes/auto-register.js'
 import { cardIssuersRouter } from './routes/card-issuers.js'
+import { collectRunsRouter } from './routes/collect-runs.js'
 import { collectSettingsRouter } from './routes/collect-settings.js'
 import { mailConnectionsRouter } from './routes/mail-connections.js'
 import { meRouter } from './routes/me.js'
+import { transactionsRouter } from './routes/transactions.js'
+import { startCollectScheduler } from './services/collect-scheduler.js'
 
 const app = express()
 
@@ -24,10 +27,13 @@ app.use('/me', meRouter)
 app.use('/mail-connections', mailConnectionsRouter)
 app.use('/card-issuers', cardIssuersRouter)
 app.use('/collect-settings', collectSettingsRouter)
+app.use('/collect-runs', collectRunsRouter)
 app.use('/auto-register', autoRegisterRouter)
+app.use('/transactions', transactionsRouter)
 
 app.use(errorHandler)
 
 app.listen(env.port, () => {
   console.log(`server listening on http://localhost:${env.port}`)
+  startCollectScheduler()
 })
