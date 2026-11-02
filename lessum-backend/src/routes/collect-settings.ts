@@ -3,10 +3,21 @@ import { Router } from 'express'
 import { todayInKst } from '../lib/collect-schedule.js'
 import { parseCollectSettingsInput } from '../lib/collect-settings.js'
 import { requireAuth } from '../middleware/auth.js'
-import { saveCollectSettings } from '../services/collect-settings.js'
+import {
+  getCollectSummary,
+  saveCollectSettings,
+} from '../services/collect-settings.js'
 import { assertConnectionUsable } from '../services/mail-connections.js'
 
 export const collectSettingsRouter = Router()
+
+collectSettingsRouter.get('/', requireAuth, async (req, res, next) => {
+  try {
+    res.json(await getCollectSummary(req.user!.id))
+  } catch (error) {
+    next(error)
+  }
+})
 
 collectSettingsRouter.put('/', requireAuth, async (req, res, next) => {
   try {

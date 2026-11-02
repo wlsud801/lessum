@@ -47,6 +47,11 @@ export async function assertConnectionUsable(userId: string) {
   await loadConnection(userId)
 }
 
+export async function getConnectionEmail(userId: string) {
+  const connection = await loadConnection(userId)
+  return connection.email
+}
+
 export async function getConnectionCredentials(userId: string) {
   const connection = await loadConnection(userId)
 

@@ -84,7 +84,7 @@ mailConnectionsRouter.get(
       )
       const mailboxes = await listNaverMailboxes(email, appPassword)
 
-      res.json({ mailboxes })
+      res.json({ email, mailboxes })
     } catch (error) {
       next(error)
     }
