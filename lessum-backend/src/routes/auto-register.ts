@@ -7,6 +7,7 @@ import {
   disableAutoRegister,
   enableAutoRegister,
 } from '../services/auto-register.js'
+import { kickCollectWorker } from '../services/collect-scheduler.js'
 
 export const autoRegisterRouter = Router()
 
@@ -14,7 +15,9 @@ autoRegisterRouter.post('/enable', requireAuth, async (req, res, next) => {
   try {
     assertStorageConsent(req.body)
 
-    res.json(await enableAutoRegister(req.user!.id, todayInKst()))
+    const result = await enableAutoRegister(req.user!.id, todayInKst())
+    kickCollectWorker()
+    res.json(result)
   } catch (error) {
     next(error)
   }
