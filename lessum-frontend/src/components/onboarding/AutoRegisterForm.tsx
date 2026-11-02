@@ -1,19 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useActionState, useState } from 'react'
 
+import { FormAlert } from '@/components/auth/FormAlert'
 import { NoticeBox } from '@/components/onboarding/NoticeBox'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-
-const DUMMY_SUMMARY_LINES = [
-  '네이버 · example@naver.com / 카드명세서 메일함',
-  '현대 매월 25일 · 롯데 매월 20일 · 우리 매월 26일 · 삼성 매월 말일',
-  '다음 자동 조회: 2026.10.25 · 한국시간 기준',
-  '설정을 마치면 기존 명세서를 한 번 가져옵니다.',
-]
+import { enableAutoRegister } from '@/lib/onboarding/actions'
 
 const STORAGE_NOTICE_LINES = [
   '네이버 앱 비밀번호와 선택한 카드의 명세서 암호를 암호화해 보관합니다.',
@@ -22,19 +17,20 @@ const STORAGE_NOTICE_LINES = [
   '폴더 선택이 앱 비밀번호 권한 자체를 제한하지는 않습니다.',
 ]
 
-export function AutoRegisterForm() {
-  const [isAgreed, setIsAgreed] = useState(false)
+interface AutoRegisterFormProps {
+  summaryLines: string[]
+}
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    // TODO : 자동 등록 켜기 API 호출 후 첫 수집 결과 단계로 이동
-  }
+export function AutoRegisterForm({ summaryLines }: AutoRegisterFormProps) {
+  const [isAgreed, setIsAgreed] = useState(false)
+  const [state, formAction, isPending] = useActionState(enableAutoRegister, {})
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+    <form action={formAction} noValidate className="flex flex-col gap-4">
+      <FormAlert error={state.error} />
       <NoticeBox
         title="명세서 도착 예정일마다 자동으로 조회합니다"
-        lines={DUMMY_SUMMARY_LINES}
+        lines={summaryLines}
       />
       <h2 className="text-lg font-bold">자동 등록에 필요한 정보를 보관합니다.</h2>
       <NoticeBox title="보관 범위와 관리" lines={STORAGE_NOTICE_LINES} />
@@ -64,9 +60,9 @@ export function AutoRegisterForm() {
         <Button
           type="submit"
           className="h-11 w-[360px] font-bold"
-          disabled={!isAgreed}
+          disabled={!isAgreed || isPending}
         >
-          동의하고 자동 등록 켜기
+          {isPending ? '자동 등록을 켜는 중…' : '동의하고 자동 등록 켜기'}
         </Button>
       </div>
     </form>
