@@ -1,5 +1,7 @@
 import 'dotenv/config'
 
+import { parseEncryptionKey } from '../lib/crypto.js'
+
 function requireEnv(name: string): string {
   const value = process.env[name]
   if (!value) {
@@ -14,4 +16,7 @@ export const env = {
   supabaseUrl: requireEnv('SUPABASE_URL'),
   supabaseAnonKey: requireEnv('SUPABASE_ANON_KEY'),
   supabaseServiceRoleKey: requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
+  credentialEncryptionKey: parseEncryptionKey(
+    requireEnv('CREDENTIAL_ENCRYPTION_KEY'),
+  ),
 }

@@ -10,6 +10,7 @@ export interface AuthActionState {
 export interface MeResponse {
   id: string
   email?: string
+  is_first_login: boolean
   profile: {
     id: string
     timezone: string
