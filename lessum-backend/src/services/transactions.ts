@@ -4,6 +4,12 @@ import { supabaseAdmin } from '../lib/supabase.js'
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/
 
+export interface InstallmentInfo {
+  total_months: number
+  current_no: number | null
+  billed_amount: number | null
+}
+
 export interface TransactionItem {
   id: string
   transaction_date: string | null
@@ -15,6 +21,7 @@ export interface TransactionItem {
   source_type: string
   memo: string | null
   is_recurring: boolean
+  installment: InstallmentInfo | null
   requires_review: boolean
   review_reasons: string[]
 }
@@ -42,28 +49,55 @@ function monthRange(month: string) {
   return { from: `${month}-01`, to: `${nextMonth}-01` }
 }
 
+const MONTHLY_SELECT =
+  'id, transaction_date, transaction_type, merchant_name, amount, memo, source_type, payment_method_id, recurring_occurrence_id, payment_plan, installment_months, payment_method:payment_methods!transactions_payment_method_id_fkey(nickname), reviews:transaction_reviews(reason, resolved_at)'
+
+function monthIndex(date: string) {
+  const [year, monthNumber] = date.split('-').map(Number)
+  return year * 12 + (monthNumber - 1)
+}
+
 export async function getMonthlyTransactions(
   userId: string,
   month: string,
 ): Promise<MonthlyTransactions> {
   const { from, to } = monthRange(month)
 
-  const rows = await supabaseAdmin
-    .from('transactions')
-    .select(
-      'id, transaction_date, transaction_type, merchant_name, amount, memo, source_type, payment_method_id, recurring_occurrence_id, payment_method:payment_methods!transactions_payment_method_id_fkey(nickname), reviews:transaction_reviews(reason, resolved_at)',
-    )
-    .eq('user_id', userId)
-    .is('deleted_at', null)
-    .is('voided_at', null)
-    .is('reviews.resolved_at', null)
-    .or(
-      `and(transaction_date.gte.${from},transaction_date.lt.${to}),transaction_date.is.null`,
-    )
-    .order('transaction_date', { ascending: false, nullsFirst: true })
-    .order('created_at', { ascending: false })
+  const [rows, chargeRows, installmentRows] = await Promise.all([
+    supabaseAdmin
+      .from('transactions')
+      .select(MONTHLY_SELECT)
+      .eq('user_id', userId)
+      .is('deleted_at', null)
+      .is('voided_at', null)
+      .is('reviews.resolved_at', null)
+      .or(
+        `and(transaction_date.gte.${from},transaction_date.lt.${to}),transaction_date.is.null`,
+      )
+      .order('transaction_date', { ascending: false, nullsFirst: true })
+      .order('created_at', { ascending: false }),
+    supabaseAdmin
+      .from('installment_charges')
+      .select('transaction_id, installment_no, billed_amount')
+      .eq('user_id', userId)
+      .gte('billing_month', from)
+      .lt('billing_month', to),
+    supabaseAdmin
+      .from('transactions')
+      .select(MONTHLY_SELECT)
+      .eq('user_id', userId)
+      .is('deleted_at', null)
+      .is('voided_at', null)
+      .is('reviews.resolved_at', null)
+      .eq('payment_plan', 'INSTALLMENT')
+      .not('installment_months', 'is', null)
+      .not('transaction_date', 'is', null)
+      .lt('transaction_date', from)
+      .order('transaction_date', { ascending: false })
+      .order('created_at', { ascending: false }),
+  ])
 
-  if (rows.error) {
+  if (rows.error || chargeRows.error || installmentRows.error) {
     throw new ApiError(
       500,
       'TRANSACTIONS_LOAD_FAILED',
@@ -71,11 +105,45 @@ export async function getMonthlyTransactions(
     )
   }
 
-  const transactions: TransactionItem[] = rows.data.map((itRow) => {
+  const charges = new Map(
+    chargeRows.data.map((itRow) => [itRow.transaction_id, itRow]),
+  )
+
+  const viewMonthIndex = monthIndex(from)
+  const carriedRows = installmentRows.data.filter((itRow) => {
+    if (charges.has(itRow.id)) {
+      return true
+    }
+    if (itRow.transaction_date === null || itRow.installment_months === null) {
+      return false
+    }
+    const elapsed = viewMonthIndex - monthIndex(itRow.transaction_date)
+    return elapsed < itRow.installment_months
+  })
+
+  const seenIds = new Set<string>()
+  const mergedRows = [...rows.data, ...carriedRows].filter((itRow) => {
+    if (seenIds.has(itRow.id)) {
+      return false
+    }
+    seenIds.add(itRow.id)
+    return true
+  })
+
+  const transactions: TransactionItem[] = mergedRows.map((itRow) => {
     const method = Array.isArray(itRow.payment_method)
       ? itRow.payment_method[0]
       : itRow.payment_method
     const reviews = itRow.reviews ?? []
+    const charge = charges.get(itRow.id)
+    const installment: InstallmentInfo | null =
+      itRow.payment_plan === 'INSTALLMENT' && itRow.installment_months !== null
+        ? {
+            total_months: itRow.installment_months,
+            current_no: charge?.installment_no ?? null,
+            billed_amount: charge?.billed_amount ?? null,
+          }
+        : null
     return {
       id: itRow.id,
       transaction_date: itRow.transaction_date,
@@ -87,6 +155,7 @@ export async function getMonthlyTransactions(
       source_type: itRow.source_type,
       memo: itRow.memo,
       is_recurring: itRow.recurring_occurrence_id !== null,
+      installment,
       requires_review: reviews.length > 0,
       review_reasons: reviews.map((itReview) => itReview.reason),
     }
@@ -129,6 +198,7 @@ function toTransactionItem(
     source_type: row.source_type,
     memo: row.memo,
     is_recurring: row.recurring_occurrence_id !== null,
+    installment: null,
     requires_review: false,
     review_reasons: [],
   }
