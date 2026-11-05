@@ -1,4 +1,5 @@
 import { ApiError } from '../lib/errors.js'
+import type { ManualTransactionInput } from '../lib/manual-transaction.js'
 import { supabaseAdmin } from '../lib/supabase.js'
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/
@@ -92,4 +93,103 @@ export async function getMonthlyTransactions(
     review_count: transactions.filter((itRow) => itRow.requires_review).length,
     transactions,
   }
+}
+
+const TRANSACTION_COLUMNS =
+  'id, transaction_date, transaction_type, merchant_name, amount, memo, source_type'
+
+interface TransactionRow {
+  id: string
+  transaction_date: string | null
+  transaction_type: string
+  merchant_name: string | null
+  amount: number | null
+  memo: string | null
+  source_type: string
+}
+
+function toManualItem(
+  row: TransactionRow,
+  paymentMethod: string | null,
+): TransactionItem {
+  return {
+    id: row.id,
+    transaction_date: row.transaction_date,
+    transaction_type: row.transaction_type,
+    merchant_name: row.merchant_name,
+    amount: row.amount,
+    payment_method: paymentMethod,
+    source_type: row.source_type,
+    memo: row.memo,
+    requires_review: false,
+    review_reasons: [],
+  }
+}
+
+export async function createManualTransaction(
+  userId: string,
+  input: ManualTransactionInput,
+): Promise<TransactionItem> {
+  let methodNickname: string | null = null
+  if (input.paymentMethodId) {
+    const method = await supabaseAdmin
+      .from('payment_methods')
+      .select('id, nickname')
+      .eq('id', input.paymentMethodId)
+      .eq('user_id', userId)
+      .is('archived_at', null)
+      .maybeSingle()
+    if (method.error) {
+      throw new ApiError(
+        500,
+        'TRANSACTION_SAVE_FAILED',
+        '거래를 저장하지 못했습니다.',
+      )
+    }
+    if (!method.data) {
+      throw new ApiError(
+        400,
+        'PAYMENT_METHOD_NOT_FOUND',
+        '결제 수단을 찾을 수 없습니다.',
+      )
+    }
+    methodNickname = method.data.nickname
+  }
+
+  const inserted = await supabaseAdmin
+    .from('transactions')
+    .insert({
+      user_id: userId,
+      transaction_date: input.transactionDate,
+      transaction_type: input.transactionType,
+      merchant_name: input.merchantName,
+      amount: input.amount,
+      payment_method_id: input.paymentMethodId,
+      source_type: 'MANUAL',
+      memo: input.memo,
+      client_request_id: input.clientRequestId,
+    })
+    .select(TRANSACTION_COLUMNS)
+    .single()
+
+  if (inserted.error) {
+    if (inserted.error.code === '23505' && input.clientRequestId) {
+      const existing = await supabaseAdmin
+        .from('transactions')
+        .select(TRANSACTION_COLUMNS)
+        .eq('user_id', userId)
+        .eq('client_request_id', input.clientRequestId)
+        .single()
+      if (!existing.error) {
+        return toManualItem(existing.data, methodNickname)
+      }
+    }
+    throw new ApiError(
+      500,
+      'TRANSACTION_SAVE_FAILED',
+      '거래를 저장하지 못했습니다.',
+    )
+  }
+
+  return toManualItem(inserted.data, methodNickname)
 }
