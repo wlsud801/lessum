@@ -28,3 +28,24 @@ export interface TransactionsResponse {
   review_count: number
   transactions: TransactionItem[]
 }
+
+export interface PaymentMethodItem {
+  id: string
+  method_type: 'CARD' | 'ACCOUNT' | 'CASH'
+  nickname: string
+}
+
+export interface CreateTransactionPayload {
+  transaction_type: TransactionType
+  transaction_date: string
+  merchant_name: string
+  amount: number
+  payment_method_id: string | null
+  memo: string | null
+  client_request_id: string
+}
+
+export interface AddTransactionState {
+  error?: string
+  success?: boolean
+}

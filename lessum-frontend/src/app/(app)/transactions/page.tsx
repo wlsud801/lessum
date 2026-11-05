@@ -2,7 +2,7 @@ import { connection } from 'next/server'
 
 import { TransactionsView } from '@/components/transactions/TransactionsView'
 import { getMe } from '@/lib/auth/api'
-import { getTransactions } from '@/lib/transactions/api'
+import { getPaymentMethods, getTransactions } from '@/lib/transactions/api'
 
 interface TransactionsPageProps {
   searchParams: Promise<{ month?: string }>
@@ -43,7 +43,10 @@ export default async function TransactionsPage({
       ? monthParam
       : currentMonth(timezone)
 
-  const data = await getTransactions(month)
+  const [data, paymentMethods] = await Promise.all([
+    getTransactions(month),
+    getPaymentMethods(),
+  ])
 
   return (
     <div className="flex flex-1 flex-col gap-4">
@@ -55,6 +58,7 @@ export default async function TransactionsPage({
         nextMonth={shiftMonth(month, 1)}
         reviewCount={data?.review_count ?? 0}
         transactions={data?.transactions ?? []}
+        paymentMethods={paymentMethods}
       />
     </div>
   )

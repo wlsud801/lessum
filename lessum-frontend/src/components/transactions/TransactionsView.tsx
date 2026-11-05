@@ -2,17 +2,19 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react'
 import { cn } from 'cn'
 
+import { AddTransactionForm } from '@/components/transactions/AddTransactionForm'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect } from '@/components/ui/native-select'
+import { SOURCE_LABELS, TYPE_LABELS } from '@/lib/transactions/labels'
 
 import type {
+  PaymentMethodItem,
   TransactionItem,
-  TransactionSourceType,
   TransactionType,
 } from '@/lib/transactions/types'
 
@@ -22,6 +24,7 @@ interface TransactionsViewProps {
   nextMonth: string
   reviewCount: number
   transactions: TransactionItem[]
+  paymentMethods: PaymentMethodItem[]
 }
 
 type TypeTab = 'all' | 'income' | 'expense' | 'transfer'
@@ -39,24 +42,6 @@ const TYPE_TAB_GROUPS: Record<Exclude<TypeTab, 'all'>, TransactionType[]> = {
   income: ['INCOME', 'INCOME_RETURN'],
   expense: ['CARD_EXPENSE', 'ACCOUNT_EXPENSE', 'CASH_EXPENSE', 'EXPENSE_REFUND'],
   transfer: ['CARD_BILL_PAYMENT', 'INTERNAL_TRANSFER'],
-}
-
-const TYPE_LABELS: Record<TransactionType, string> = {
-  INCOME: '수입',
-  CARD_EXPENSE: '카드 지출',
-  ACCOUNT_EXPENSE: '계좌 지출',
-  CASH_EXPENSE: '현금 지출',
-  EXPENSE_REFUND: '환불',
-  INCOME_RETURN: '수입 반환',
-  CARD_BILL_PAYMENT: '카드대금 납부',
-  INTERNAL_TRANSFER: '내 계좌 이동',
-}
-
-const SOURCE_LABELS: Record<TransactionSourceType, string> = {
-  EMAIL: '메일',
-  STATEMENT_FILE: '파일',
-  CSV: 'CSV',
-  MANUAL: '수기',
 }
 
 const SORTABLE_HEADERS: { key: SortKey; label: string; width: string }[] = [
@@ -112,6 +97,7 @@ export function TransactionsView({
   nextMonth,
   reviewCount,
   transactions,
+  paymentMethods,
 }: TransactionsViewProps) {
   const [typeTab, setTypeTab] = useState<TypeTab>('all')
   const [search, setSearch] = useState('')
@@ -254,17 +240,7 @@ export function TransactionsView({
         ))}
       </div>
 
-      <div className="rounded-lg border bg-muted/40">
-        <button
-          type="button"
-          disabled
-          title="준비 중입니다"
-          className="flex h-13 w-full cursor-not-allowed items-center justify-between px-4 py-3"
-        >
-          <span className="text-[15px] font-bold">거래 추가</span>
-          <ChevronDown className="size-4 text-muted-foreground" />
-        </button>
-      </div>
+      <AddTransactionForm paymentMethods={paymentMethods} />
 
       <h2 className="text-xl font-bold">거래 내역</h2>
 
