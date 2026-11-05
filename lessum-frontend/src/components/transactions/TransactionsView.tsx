@@ -10,7 +10,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect } from '@/components/ui/native-select'
 
-import type { TransactionItem } from '@/lib/transactions/types'
+import type {
+  TransactionItem,
+  TransactionSourceType,
+  TransactionType,
+} from '@/lib/transactions/types'
 
 interface TransactionsViewProps {
   monthLabel: string
@@ -31,17 +35,28 @@ const TYPE_TABS: { id: TypeTab; label: string }[] = [
   { id: 'transfer', label: '정산·이동' },
 ]
 
-const KIND_LABELS: Record<TransactionItem['kind'], string> = {
-  purchase_candidate: '카드 지출',
-  refund: '환불',
-  adjustment_reference: '조정',
+const TYPE_TAB_GROUPS: Record<Exclude<TypeTab, 'all'>, TransactionType[]> = {
+  income: ['INCOME', 'INCOME_RETURN'],
+  expense: ['CARD_EXPENSE', 'ACCOUNT_EXPENSE', 'CASH_EXPENSE', 'EXPENSE_REFUND'],
+  transfer: ['CARD_BILL_PAYMENT', 'INTERNAL_TRANSFER'],
 }
 
-const ISSUER_LABELS: Record<TransactionItem['issuer'], string> = {
-  hyundai: '현대카드',
-  lotte: '롯데카드',
-  woori: '우리카드',
-  samsung: '삼성카드',
+const TYPE_LABELS: Record<TransactionType, string> = {
+  INCOME: '수입',
+  CARD_EXPENSE: '카드 지출',
+  ACCOUNT_EXPENSE: '계좌 지출',
+  CASH_EXPENSE: '현금 지출',
+  EXPENSE_REFUND: '환불',
+  INCOME_RETURN: '수입 반환',
+  CARD_BILL_PAYMENT: '카드대금 납부',
+  INTERNAL_TRANSFER: '내 계좌 이동',
+}
+
+const SOURCE_LABELS: Record<TransactionSourceType, string> = {
+  EMAIL: '메일',
+  STATEMENT_FILE: '파일',
+  CSV: 'CSV',
+  MANUAL: '수기',
 }
 
 const SORTABLE_HEADERS: { key: SortKey; label: string; width: string }[] = [
@@ -56,21 +71,22 @@ const CELL_CLASS = 'px-2.5 py-2 text-sm'
 
 function formatDate(row: TransactionItem) {
   if (!row.transaction_date) {
-    return row.raw_date ?? '—'
+    return '—'
   }
   const [, month, day] = row.transaction_date.split('-')
   return `${month}.${day}`
 }
 
 function formatAmount(row: TransactionItem) {
-  if (row.amount_krw === null) {
+  if (row.amount === null) {
     return '확인 필요'
   }
-  return `${row.amount_krw.toLocaleString('ko-KR')}원`
+  return `${row.amount.toLocaleString('ko-KR')}원`
 }
 
 function statusLabel(row: TransactionItem) {
-  return row.requires_review ? '메일 · 확인 필요' : '메일 · 등록됨'
+  const source = SOURCE_LABELS[row.source_type] ?? row.source_type
+  return `${source} · ${row.requires_review ? '확인 필요' : '등록됨'}`
 }
 
 function sortValue(row: TransactionItem, key: SortKey): string | number {
@@ -78,13 +94,13 @@ function sortValue(row: TransactionItem, key: SortKey): string | number {
     case 'date':
       return row.transaction_date ?? ''
     case 'kind':
-      return KIND_LABELS[row.kind] ?? row.kind
+      return TYPE_LABELS[row.transaction_type] ?? row.transaction_type
     case 'merchant':
-      return row.merchant ?? ''
+      return row.merchant_name ?? ''
     case 'issuer':
-      return ISSUER_LABELS[row.issuer] ?? row.issuer
+      return row.payment_method ?? ''
     case 'amount':
-      return row.amount_krw ?? Number.NEGATIVE_INFINITY
+      return row.amount ?? Number.NEGATIVE_INFINITY
     case 'status':
       return statusLabel(row)
   }
@@ -99,26 +115,38 @@ export function TransactionsView({
 }: TransactionsViewProps) {
   const [typeTab, setTypeTab] = useState<TypeTab>('all')
   const [search, setSearch] = useState('')
-  const [issuerFilter, setIssuerFilter] = useState('all')
+  const [methodFilter, setMethodFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortAscending, setSortAscending] = useState(false)
 
-  const issuers = useMemo(
-    () => [...new Set(transactions.map((itRow) => itRow.issuer))],
+  const methods = useMemo(
+    () => [
+      ...new Set(
+        transactions
+          .map((itRow) => itRow.payment_method)
+          .filter((itMethod): itMethod is string => itMethod !== null),
+      ),
+    ],
     [transactions],
   )
 
   const rows = useMemo(() => {
     const keyword = search.trim().toLowerCase()
     const filtered = transactions.filter((itRow) => {
-      if (typeTab === 'income' || typeTab === 'transfer') {
+      if (
+        typeTab !== 'all' &&
+        !TYPE_TAB_GROUPS[typeTab].includes(itRow.transaction_type)
+      ) {
         return false
       }
-      if (keyword && !(itRow.merchant ?? '').toLowerCase().includes(keyword)) {
+      if (
+        keyword &&
+        !(itRow.merchant_name ?? '').toLowerCase().includes(keyword)
+      ) {
         return false
       }
-      if (issuerFilter !== 'all' && itRow.issuer !== issuerFilter) {
+      if (methodFilter !== 'all' && itRow.payment_method !== methodFilter) {
         return false
       }
       if (statusFilter === 'review' && !itRow.requires_review) {
@@ -139,7 +167,7 @@ export function TransactionsView({
           : String(left).localeCompare(String(right), 'ko')
       return sortAscending ? compared : -compared
     })
-  }, [transactions, typeTab, search, issuerFilter, statusFilter, sortKey, sortAscending])
+  }, [transactions, typeTab, search, methodFilter, statusFilter, sortKey, sortAscending])
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -273,13 +301,13 @@ export function TransactionsView({
           <NativeSelect
             id="issuerFilter"
             className="h-11"
-            value={issuerFilter}
-            onChange={(event) => setIssuerFilter(event.target.value)}
+            value={methodFilter}
+            onChange={(event) => setMethodFilter(event.target.value)}
           >
             <option value="all">전체</option>
-            {issuers.map((itIssuer) => (
-              <option key={itIssuer} value={itIssuer}>
-                {ISSUER_LABELS[itIssuer] ?? itIssuer}
+            {methods.map((itMethod) => (
+              <option key={itMethod} value={itMethod}>
+                {itMethod}
               </option>
             ))}
           </NativeSelect>
@@ -367,18 +395,20 @@ export function TransactionsView({
             ) : (
               rows.map((itRow) => (
                 <tr key={itRow.id} className="border-t">
-                  <td className={CELL_CLASS}>{formatDate(itRow)}</td>
-                  <td className={CELL_CLASS}>{KIND_LABELS[itRow.kind] ?? itRow.kind}</td>
-                  <td className={cn(CELL_CLASS, 'truncate')}>
-                    {itRow.merchant ?? '—'}
+                  <td className={CELL_CLASS} title={itRow.memo ?? undefined}>
+                    {formatDate(itRow)}
                   </td>
                   <td className={CELL_CLASS}>
-                    {ISSUER_LABELS[itRow.issuer] ?? itRow.issuer}
+                    {TYPE_LABELS[itRow.transaction_type] ?? itRow.transaction_type}
                   </td>
+                  <td className={cn(CELL_CLASS, 'truncate')}>
+                    {itRow.merchant_name ?? '—'}
+                  </td>
+                  <td className={CELL_CLASS}>{itRow.payment_method ?? '—'}</td>
                   <td
                     className={cn(
                       CELL_CLASS,
-                      itRow.amount_krw === null && 'text-muted-foreground',
+                      itRow.amount === null && 'text-muted-foreground',
                     )}
                   >
                     {formatAmount(itRow)}

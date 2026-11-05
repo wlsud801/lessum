@@ -1,13 +1,24 @@
-export type CardIssuer = 'hyundai' | 'lotte' | 'woori' | 'samsung'
+export type TransactionType =
+  | 'INCOME'
+  | 'CARD_EXPENSE'
+  | 'ACCOUNT_EXPENSE'
+  | 'CASH_EXPENSE'
+  | 'EXPENSE_REFUND'
+  | 'INCOME_RETURN'
+  | 'CARD_BILL_PAYMENT'
+  | 'INTERNAL_TRANSFER'
+
+export type TransactionSourceType = 'EMAIL' | 'STATEMENT_FILE' | 'CSV' | 'MANUAL'
 
 export interface TransactionItem {
   id: string
-  kind: 'purchase_candidate' | 'refund' | 'adjustment_reference'
   transaction_date: string | null
-  raw_date: string | null
-  merchant: string | null
-  issuer: CardIssuer
-  amount_krw: number | null
+  transaction_type: TransactionType
+  merchant_name: string | null
+  amount: number | null
+  payment_method: string | null
+  source_type: TransactionSourceType
+  memo: string | null
   requires_review: boolean
   review_reasons: string[]
 }
