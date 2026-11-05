@@ -5,12 +5,13 @@ const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/
 
 export interface TransactionItem {
   id: string
-  kind: string
   transaction_date: string | null
-  raw_date: string | null
-  merchant: string | null
-  issuer: string
-  amount_krw: number | null
+  transaction_type: string
+  merchant_name: string | null
+  amount: number | null
+  payment_method: string | null
+  source_type: string
+  memo: string | null
   requires_review: boolean
   review_reasons: string[]
 }
@@ -45,11 +46,14 @@ export async function getMonthlyTransactions(
   const { from, to } = monthRange(month)
 
   const rows = await supabaseAdmin
-    .from('statement_rows')
+    .from('transactions')
     .select(
-      'id, kind, transaction_date, raw_date, merchant, amount_krw, requires_review, review_reasons, statements!inner(issuer)',
+      'id, transaction_date, transaction_type, merchant_name, amount, memo, source_type, payment_method:payment_methods!transactions_payment_method_id_fkey(nickname), reviews:transaction_reviews(reason, resolved_at)',
     )
     .eq('user_id', userId)
+    .is('deleted_at', null)
+    .is('voided_at', null)
+    .is('reviews.resolved_at', null)
     .or(
       `and(transaction_date.gte.${from},transaction_date.lt.${to}),transaction_date.is.null`,
     )
@@ -65,19 +69,21 @@ export async function getMonthlyTransactions(
   }
 
   const transactions: TransactionItem[] = rows.data.map((itRow) => {
-    const statement = Array.isArray(itRow.statements)
-      ? itRow.statements[0]
-      : itRow.statements
+    const method = Array.isArray(itRow.payment_method)
+      ? itRow.payment_method[0]
+      : itRow.payment_method
+    const reviews = itRow.reviews ?? []
     return {
       id: itRow.id,
-      kind: itRow.kind,
       transaction_date: itRow.transaction_date,
-      raw_date: itRow.raw_date,
-      merchant: itRow.merchant,
-      issuer: statement?.issuer ?? '',
-      amount_krw: itRow.amount_krw,
-      requires_review: itRow.requires_review,
-      review_reasons: itRow.review_reasons ?? [],
+      transaction_type: itRow.transaction_type,
+      merchant_name: itRow.merchant_name,
+      amount: itRow.amount,
+      payment_method: method?.nickname ?? null,
+      source_type: itRow.source_type,
+      memo: itRow.memo,
+      requires_review: reviews.length > 0,
+      review_reasons: reviews.map((itReview) => itReview.reason),
     }
   })
 
