@@ -398,7 +398,7 @@ export function TransactionsView({
                 </button>
               </th>
               <th scope="col" className="px-2.5 py-1.5">
-                정기거래
+                정기·할부
               </th>
               <th scope="col" className="px-2.5 py-1.5">
                 <span className="sr-only">행 작업</span>
@@ -444,9 +444,28 @@ export function TransactionsView({
                     {statusLabel(itRow)}
                   </td>
                   <td className={cn(CELL_CLASS, 'text-center')}>
-                    {itRow.is_recurring ? (
-                      <span className="inline-flex h-6 items-center rounded-full border px-2 text-xs text-muted-foreground">
-                        정기
+                    {itRow.is_recurring || itRow.installment ? (
+                      <span className="inline-flex flex-col items-center gap-1">
+                        {itRow.is_recurring && (
+                          <span className="inline-flex h-6 items-center rounded-full border px-2 text-xs text-muted-foreground">
+                            정기
+                          </span>
+                        )}
+                        {itRow.installment && (
+                          <span
+                            className="inline-flex h-6 items-center rounded-full border px-2 text-xs text-muted-foreground"
+                            title={
+                              itRow.installment.billed_amount !== null
+                                ? `이번 달 청구 ${itRow.installment.billed_amount.toLocaleString('ko-KR')}원`
+                                : undefined
+                            }
+                          >
+                            할부{' '}
+                            {itRow.installment.current_no !== null
+                              ? `${itRow.installment.current_no}/${itRow.installment.total_months}`
+                              : `${itRow.installment.total_months}개월`}
+                          </span>
+                        )}
                       </span>
                     ) : (
                       '—'

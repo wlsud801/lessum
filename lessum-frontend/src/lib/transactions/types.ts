@@ -10,6 +10,12 @@ export type TransactionType =
 
 export type TransactionSourceType = 'EMAIL' | 'STATEMENT_FILE' | 'CSV' | 'MANUAL'
 
+export interface InstallmentInfo {
+  total_months: number
+  current_no: number | null
+  billed_amount: number | null
+}
+
 export interface TransactionItem {
   id: string
   transaction_date: string | null
@@ -21,6 +27,7 @@ export interface TransactionItem {
   source_type: TransactionSourceType
   memo: string | null
   is_recurring: boolean
+  installment: InstallmentInfo | null
   requires_review: boolean
   review_reasons: string[]
 }
