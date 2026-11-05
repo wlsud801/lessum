@@ -1,15 +1,18 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react'
+import { useMemo, useState, useTransition } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from 'cn'
 
 import { AddTransactionForm } from '@/components/transactions/AddTransactionForm'
+import { EditTransactionForm } from '@/components/transactions/EditTransactionForm'
+import { TransactionRowActions } from '@/components/transactions/TransactionRowActions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect } from '@/components/ui/native-select'
+import { removeTransaction } from '@/lib/transactions/actions'
 import { SOURCE_LABELS, TYPE_LABELS } from '@/lib/transactions/labels'
 
 import type {
@@ -105,6 +108,30 @@ export function TransactionsView({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortAscending, setSortAscending] = useState(false)
+  const [editingRow, setEditingRow] = useState<TransactionItem | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [isDeleting, startDeleteTransition] = useTransition()
+
+  const handleDelete = (row: TransactionItem) => {
+    if (
+      !window.confirm(
+        `'${row.merchant_name ?? '이 거래'}' 거래를 삭제할까요?`,
+      )
+    ) {
+      return
+    }
+    startDeleteTransition(async () => {
+      const state = await removeTransaction(row.id)
+      if (state.error) {
+        setActionError(state.error)
+        return
+      }
+      setActionError(null)
+      if (editingRow?.id === row.id) {
+        setEditingRow(null)
+      }
+    })
+  }
 
   const methods = useMemo(
     () => [
@@ -243,6 +270,26 @@ export function TransactionsView({
       <AddTransactionForm paymentMethods={paymentMethods} />
 
       <h2 className="text-xl font-bold">거래 내역</h2>
+
+      {editingRow && (
+        <EditTransactionForm
+          key={editingRow.id}
+          transaction={editingRow}
+          paymentMethods={paymentMethods}
+          onClose={() => setEditingRow(null)}
+        />
+      )}
+
+      {isDeleting && (
+        <p role="status" className="text-sm text-muted-foreground">
+          삭제 중…
+        </p>
+      )}
+      {actionError && !isDeleting && (
+        <p role="alert" className="text-sm text-destructive">
+          {actionError}
+        </p>
+      )}
 
       <div className="flex gap-3">
         <div className="flex flex-1 flex-col gap-1.5">
@@ -396,17 +443,20 @@ export function TransactionsView({
                   >
                     {statusLabel(itRow)}
                   </td>
-                  <td className={cn(CELL_CLASS, 'text-center')}>—</td>
+                  <td className={cn(CELL_CLASS, 'text-center')}>
+                    {itRow.is_recurring ? (
+                      <span className="inline-flex h-6 items-center rounded-full border px-2 text-xs text-muted-foreground">
+                        정기
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                   <td className="px-2.5 py-1.5 text-center">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      disabled
-                      title="준비 중입니다"
-                      aria-label="행 작업 열기"
-                    >
-                      <MoreVertical />
-                    </Button>
+                    <TransactionRowActions
+                      onEdit={() => setEditingRow(itRow)}
+                      onDelete={() => handleDelete(itRow)}
+                    />
                   </td>
                 </tr>
               ))

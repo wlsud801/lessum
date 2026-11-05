@@ -7,6 +7,7 @@ import type {
   PaymentMethodItem,
   TransactionItem,
   TransactionsResponse,
+  UpdateTransactionPayload,
 } from './types'
 
 export async function getTransactions(
@@ -50,4 +51,27 @@ export async function postTransaction(
     { headers: { Authorization: `Bearer ${token}` } },
   )
   return data
+}
+
+export async function patchTransaction(
+  token: string,
+  transactionId: string,
+  payload: UpdateTransactionPayload,
+): Promise<TransactionItem> {
+  const { data } = await axios.patch<TransactionItem>(
+    `${process.env.API_BASE_URL}/transactions/${transactionId}`,
+    payload,
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  return data
+}
+
+export async function deleteTransaction(
+  token: string,
+  transactionId: string,
+): Promise<void> {
+  await axios.delete(
+    `${process.env.API_BASE_URL}/transactions/${transactionId}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
 }

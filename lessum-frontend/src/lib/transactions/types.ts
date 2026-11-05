@@ -16,9 +16,11 @@ export interface TransactionItem {
   transaction_type: TransactionType
   merchant_name: string | null
   amount: number | null
+  payment_method_id: string | null
   payment_method: string | null
   source_type: TransactionSourceType
   memo: string | null
+  is_recurring: boolean
   requires_review: boolean
   review_reasons: string[]
 }
@@ -44,6 +46,11 @@ export interface CreateTransactionPayload {
   memo: string | null
   client_request_id: string
 }
+
+export type UpdateTransactionPayload = Omit<
+  CreateTransactionPayload,
+  'client_request_id'
+>
 
 export interface AddTransactionState {
   error?: string
