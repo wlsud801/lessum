@@ -7,7 +7,7 @@ export default async function HomePage() {
   const me = await getMe()
 
   return (
-    <main className="flex flex-1 items-start justify-center px-4 pt-[90px]">
+    <div className="flex flex-1 items-start justify-center">
       <Card className="w-full max-w-[520px]">
         <CardHeader>
           <CardTitle className="text-3xl font-bold">홈</CardTitle>
@@ -29,6 +29,6 @@ export default async function HomePage() {
           </form>
         </CardContent>
       </Card>
-    </main>
+    </div>
   )
 }

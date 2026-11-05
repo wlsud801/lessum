@@ -1,6 +1,5 @@
 import { connection } from 'next/server'
 
-import { AppSidebar } from '@/components/layout/AppSidebar'
 import { TransactionsView } from '@/components/transactions/TransactionsView'
 import { getMe } from '@/lib/auth/api'
 import { getTransactions } from '@/lib/transactions/api'
@@ -47,19 +46,16 @@ export default async function TransactionsPage({
   const data = await getTransactions(month)
 
   return (
-    <div className="flex min-h-screen flex-1">
-      <AppSidebar email={me?.email} active="transactions" />
-      <main className="flex flex-1 flex-col gap-4 px-8 py-8">
-        <p className="text-[13px] text-muted-foreground">Lessum / 거래 내역</p>
-        <h1 className="text-[28px] font-bold">거래 내역</h1>
-        <TransactionsView
-          monthLabel={monthLabel(month)}
-          prevMonth={shiftMonth(month, -1)}
-          nextMonth={shiftMonth(month, 1)}
-          reviewCount={data?.review_count ?? 0}
-          transactions={data?.transactions ?? []}
-        />
-      </main>
+    <div className="flex flex-1 flex-col gap-4">
+      <p className="text-[13px] text-muted-foreground">Lessum / 거래 내역</p>
+      <h1 className="text-[28px] font-bold">거래 내역</h1>
+      <TransactionsView
+        monthLabel={monthLabel(month)}
+        prevMonth={shiftMonth(month, -1)}
+        nextMonth={shiftMonth(month, 1)}
+        reviewCount={data?.review_count ?? 0}
+        transactions={data?.transactions ?? []}
+      />
     </div>
   )
 }
