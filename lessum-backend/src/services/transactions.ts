@@ -10,9 +10,11 @@ export interface TransactionItem {
   transaction_type: string
   merchant_name: string | null
   amount: number | null
+  payment_method_id: string | null
   payment_method: string | null
   source_type: string
   memo: string | null
+  is_recurring: boolean
   requires_review: boolean
   review_reasons: string[]
 }
@@ -49,7 +51,7 @@ export async function getMonthlyTransactions(
   const rows = await supabaseAdmin
     .from('transactions')
     .select(
-      'id, transaction_date, transaction_type, merchant_name, amount, memo, source_type, payment_method:payment_methods!transactions_payment_method_id_fkey(nickname), reviews:transaction_reviews(reason, resolved_at)',
+      'id, transaction_date, transaction_type, merchant_name, amount, memo, source_type, payment_method_id, recurring_occurrence_id, payment_method:payment_methods!transactions_payment_method_id_fkey(nickname), reviews:transaction_reviews(reason, resolved_at)',
     )
     .eq('user_id', userId)
     .is('deleted_at', null)
@@ -80,9 +82,11 @@ export async function getMonthlyTransactions(
       transaction_type: itRow.transaction_type,
       merchant_name: itRow.merchant_name,
       amount: itRow.amount,
+      payment_method_id: itRow.payment_method_id,
       payment_method: method?.nickname ?? null,
       source_type: itRow.source_type,
       memo: itRow.memo,
+      is_recurring: itRow.recurring_occurrence_id !== null,
       requires_review: reviews.length > 0,
       review_reasons: reviews.map((itReview) => itReview.reason),
     }
@@ -96,7 +100,7 @@ export async function getMonthlyTransactions(
 }
 
 const TRANSACTION_COLUMNS =
-  'id, transaction_date, transaction_type, merchant_name, amount, memo, source_type'
+  'id, transaction_date, transaction_type, merchant_name, amount, memo, source_type, payment_method_id, recurring_occurrence_id'
 
 interface TransactionRow {
   id: string
@@ -106,9 +110,11 @@ interface TransactionRow {
   amount: number | null
   memo: string | null
   source_type: string
+  payment_method_id: string | null
+  recurring_occurrence_id: string | null
 }
 
-function toManualItem(
+function toTransactionItem(
   row: TransactionRow,
   paymentMethod: string | null,
 ): TransactionItem {
@@ -118,43 +124,55 @@ function toManualItem(
     transaction_type: row.transaction_type,
     merchant_name: row.merchant_name,
     amount: row.amount,
+    payment_method_id: row.payment_method_id,
     payment_method: paymentMethod,
     source_type: row.source_type,
     memo: row.memo,
+    is_recurring: row.recurring_occurrence_id !== null,
     requires_review: false,
     review_reasons: [],
   }
+}
+
+async function resolvePaymentMethodNickname(
+  userId: string,
+  paymentMethodId: string | null,
+): Promise<string | null> {
+  if (!paymentMethodId) {
+    return null
+  }
+  const method = await supabaseAdmin
+    .from('payment_methods')
+    .select('id, nickname')
+    .eq('id', paymentMethodId)
+    .eq('user_id', userId)
+    .is('archived_at', null)
+    .maybeSingle()
+  if (method.error) {
+    throw new ApiError(
+      500,
+      'TRANSACTION_SAVE_FAILED',
+      '거래를 저장하지 못했습니다.',
+    )
+  }
+  if (!method.data) {
+    throw new ApiError(
+      400,
+      'PAYMENT_METHOD_NOT_FOUND',
+      '결제 수단을 찾을 수 없습니다.',
+    )
+  }
+  return method.data.nickname
 }
 
 export async function createManualTransaction(
   userId: string,
   input: ManualTransactionInput,
 ): Promise<TransactionItem> {
-  let methodNickname: string | null = null
-  if (input.paymentMethodId) {
-    const method = await supabaseAdmin
-      .from('payment_methods')
-      .select('id, nickname')
-      .eq('id', input.paymentMethodId)
-      .eq('user_id', userId)
-      .is('archived_at', null)
-      .maybeSingle()
-    if (method.error) {
-      throw new ApiError(
-        500,
-        'TRANSACTION_SAVE_FAILED',
-        '거래를 저장하지 못했습니다.',
-      )
-    }
-    if (!method.data) {
-      throw new ApiError(
-        400,
-        'PAYMENT_METHOD_NOT_FOUND',
-        '결제 수단을 찾을 수 없습니다.',
-      )
-    }
-    methodNickname = method.data.nickname
-  }
+  const methodNickname = await resolvePaymentMethodNickname(
+    userId,
+    input.paymentMethodId,
+  )
 
   const inserted = await supabaseAdmin
     .from('transactions')
@@ -181,7 +199,7 @@ export async function createManualTransaction(
         .eq('client_request_id', input.clientRequestId)
         .single()
       if (!existing.error) {
-        return toManualItem(existing.data, methodNickname)
+        return toTransactionItem(existing.data, methodNickname)
       }
     }
     throw new ApiError(
@@ -191,5 +209,97 @@ export async function createManualTransaction(
     )
   }
 
-  return toManualItem(inserted.data, methodNickname)
+  return toTransactionItem(inserted.data, methodNickname)
+}
+
+export async function updateTransaction(
+  userId: string,
+  transactionId: string,
+  input: ManualTransactionInput,
+): Promise<TransactionItem> {
+  const methodNickname = await resolvePaymentMethodNickname(
+    userId,
+    input.paymentMethodId,
+  )
+
+  const current = await supabaseAdmin
+    .from('transactions')
+    .select('id, version')
+    .eq('id', transactionId)
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (current.error) {
+    throw new ApiError(
+      500,
+      'TRANSACTION_SAVE_FAILED',
+      '거래를 저장하지 못했습니다.',
+    )
+  }
+  if (!current.data) {
+    throw new ApiError(404, 'TRANSACTION_NOT_FOUND', '거래를 찾을 수 없습니다.')
+  }
+
+  const updated = await supabaseAdmin
+    .from('transactions')
+    .update({
+      transaction_date: input.transactionDate,
+      transaction_type: input.transactionType,
+      merchant_name: input.merchantName,
+      amount: input.amount,
+      payment_method_id: input.paymentMethodId,
+      memo: input.memo,
+      version: current.data.version + 1,
+    })
+    .eq('id', transactionId)
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .select(TRANSACTION_COLUMNS)
+    .single()
+  if (updated.error) {
+    throw new ApiError(
+      500,
+      'TRANSACTION_SAVE_FAILED',
+      '거래를 저장하지 못했습니다.',
+    )
+  }
+
+  const resolved = await supabaseAdmin
+    .from('transaction_reviews')
+    .update({ resolved_at: new Date().toISOString() })
+    .eq('transaction_id', transactionId)
+    .eq('user_id', userId)
+    .is('resolved_at', null)
+  if (resolved.error) {
+    throw new ApiError(
+      500,
+      'TRANSACTION_SAVE_FAILED',
+      '거래를 저장하지 못했습니다.',
+    )
+  }
+
+  return toTransactionItem(updated.data, methodNickname)
+}
+
+export async function deleteTransaction(
+  userId: string,
+  transactionId: string,
+): Promise<void> {
+  const removed = await supabaseAdmin
+    .from('transactions')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', transactionId)
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .select('id')
+  if (removed.error) {
+    throw new ApiError(
+      500,
+      'TRANSACTION_DELETE_FAILED',
+      '거래를 삭제하지 못했습니다.',
+    )
+  }
+  if (removed.data.length === 0) {
+    throw new ApiError(404, 'TRANSACTION_NOT_FOUND', '거래를 찾을 수 없습니다.')
+  }
 }

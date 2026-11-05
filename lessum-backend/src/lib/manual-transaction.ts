@@ -27,6 +27,10 @@ export interface ManualTransactionInput {
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+export function isUuidString(value: unknown): value is string {
+  return typeof value === 'string' && UUID_PATTERN.test(value)
+}
+
 const MAX_MERCHANT_LENGTH = 100
 const MAX_MEMO_LENGTH = 500
 
