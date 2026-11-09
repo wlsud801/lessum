@@ -395,9 +395,11 @@ async function collectCard(
 
   let worst: string | null = null
   let sawFormatError = false
+  let skippedKnown = 0
 
   for (const candidate of limited) {
     if (known.has(candidate.uid)) {
+      skippedKnown += 1
       continue
     }
 
@@ -448,6 +450,8 @@ async function collectCard(
   } else if (sawFormatError) {
     outcome.status = 'unsupported_format'
     outcome.error_code = 'UNSUPPORTED_FORMAT'
+  } else if (skippedKnown > 0) {
+    outcome.status = 'parsed'
   }
   return outcome
 }
