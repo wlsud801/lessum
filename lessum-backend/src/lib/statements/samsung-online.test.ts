@@ -268,6 +268,11 @@ describe('samsungEmailAttachment', () => {
     await assert.doesNotReject(samsungEmailAttachment(emailFixture({ sender: SAMSUNG_SENDER.toUpperCase() })))
   })
 
+  it('bill@·billing@ 두 공식 발신자를 모두 허용한다', async () => {
+    await assert.doesNotReject(samsungEmailAttachment(emailFixture({ sender: 'bill@samsungcard.com' })))
+    await assert.doesNotReject(samsungEmailAttachment(emailFixture({ sender: 'billing@samsungcard.com' })))
+  })
+
   it('HTML 첨부가 없거나 여러 개이면 거부한다', async () => {
     await expectFormatError(() => samsungEmailAttachment(buildEmail([], { From: SAMSUNG_SENDER })), /Expected one Samsung statement HTML attachment/)
   })

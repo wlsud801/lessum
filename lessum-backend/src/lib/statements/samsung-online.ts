@@ -27,7 +27,8 @@ import { clean, decodeHtml, parseDate } from './text.js'
 import { decryptVestmail } from './vestmail.js'
 import { validateZip } from './zip.js'
 
-export const SAMSUNG_SENDER = 'billing@samsungcard.com'
+export const SAMSUNG_SENDER = 'bill@samsungcard.com'
+export const SAMSUNG_SENDERS = new Set([SAMSUNG_SENDER, 'billing@samsungcard.com'])
 
 const ACCESS_KEYS = ['bilMngtNoEncr', 'bilMngtNoDvC', 'stlmDt'] as const
 const UNHANDLED_PRODUCT_COUNTS = [
@@ -206,7 +207,10 @@ export async function downloadExport(
 export async function samsungEmailAttachment(data: Uint8Array) {
   const message = await parseMessage(data)
   const senders = message.from?.value ?? []
-  if (senders.length !== 1 || senders[0].address?.toLowerCase() !== SAMSUNG_SENDER) {
+  if (
+    senders.length !== 1 ||
+    !SAMSUNG_SENDERS.has(senders[0].address?.toLowerCase() ?? '')
+  ) {
     throw new StatementFormatError(
       'Email sender does not match selected Samsung statement sender',
     )
