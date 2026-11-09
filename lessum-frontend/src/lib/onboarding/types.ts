@@ -82,6 +82,12 @@ export interface CollectRunResponse {
   next_collect_on: string | null
 }
 
+export interface CreateCollectRunResponse {
+  run_id: string
+  status: CollectRunStatus
+  created_at: string
+}
+
 export type ArrivalDay = number | 'last'
 
 export interface CollectCardPayload {

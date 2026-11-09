@@ -7,6 +7,7 @@ import type {
   CollectRunResponse,
   CollectSettingsPayload,
   CollectSummaryResponse,
+  CreateCollectRunResponse,
   MailboxesResponse,
 } from './types'
 
@@ -76,6 +77,36 @@ export async function getCollectSummary(
 ): Promise<CollectSummaryResponse> {
   const { data } = await axios.get<CollectSummaryResponse>(
     `${process.env.API_BASE_URL}/collect-settings`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  )
+  return data
+}
+
+export async function disableAutoRegister(accessToken: string): Promise<void> {
+  await axios.post(
+    `${process.env.API_BASE_URL}/auto-register/disable`,
+    undefined,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  )
+}
+
+export async function createCollectRun(
+  accessToken: string,
+): Promise<CreateCollectRunResponse> {
+  const { data } = await axios.post<CreateCollectRunResponse>(
+    `${process.env.API_BASE_URL}/collect-runs`,
+    undefined,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  )
+  return data
+}
+
+export async function getCollectRun(
+  accessToken: string,
+  runId: string,
+): Promise<CollectRunResponse> {
+  const { data } = await axios.get<CollectRunResponse>(
+    `${process.env.API_BASE_URL}/collect-runs/${runId}`,
     { headers: { Authorization: `Bearer ${accessToken}` } },
   )
   return data
