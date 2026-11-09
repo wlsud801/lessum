@@ -1,13 +1,33 @@
-export type CardIssuer = 'hyundai' | 'lotte' | 'woori' | 'samsung'
+export type TransactionType =
+  | 'INCOME'
+  | 'CARD_EXPENSE'
+  | 'ACCOUNT_EXPENSE'
+  | 'CASH_EXPENSE'
+  | 'EXPENSE_REFUND'
+  | 'INCOME_RETURN'
+  | 'CARD_BILL_PAYMENT'
+  | 'INTERNAL_TRANSFER'
+
+export type TransactionSourceType = 'EMAIL' | 'STATEMENT_FILE' | 'CSV' | 'MANUAL'
+
+export interface InstallmentInfo {
+  total_months: number
+  current_no: number | null
+  billed_amount: number | null
+}
 
 export interface TransactionItem {
   id: string
-  kind: 'purchase_candidate' | 'refund' | 'adjustment_reference'
   transaction_date: string | null
-  raw_date: string | null
-  merchant: string | null
-  issuer: CardIssuer
-  amount_krw: number | null
+  transaction_type: TransactionType
+  merchant_name: string | null
+  amount: number | null
+  payment_method_id: string | null
+  payment_method: string | null
+  source_type: TransactionSourceType
+  memo: string | null
+  is_recurring: boolean
+  installment: InstallmentInfo | null
   requires_review: boolean
   review_reasons: string[]
 }
@@ -16,4 +36,30 @@ export interface TransactionsResponse {
   month: string
   review_count: number
   transactions: TransactionItem[]
+}
+
+export interface PaymentMethodItem {
+  id: string
+  method_type: 'CARD' | 'ACCOUNT' | 'CASH'
+  nickname: string
+}
+
+export interface CreateTransactionPayload {
+  transaction_type: TransactionType
+  transaction_date: string
+  merchant_name: string
+  amount: number
+  payment_method_id: string | null
+  memo: string | null
+  client_request_id: string
+}
+
+export type UpdateTransactionPayload = Omit<
+  CreateTransactionPayload,
+  'client_request_id'
+>
+
+export interface AddTransactionState {
+  error?: string
+  success?: boolean
 }

@@ -1,9 +1,8 @@
 import { connection } from 'next/server'
 
-import { AppSidebar } from '@/components/layout/AppSidebar'
 import { TransactionsView } from '@/components/transactions/TransactionsView'
 import { getMe } from '@/lib/auth/api'
-import { getTransactions } from '@/lib/transactions/api'
+import { getPaymentMethods, getTransactions } from '@/lib/transactions/api'
 
 interface TransactionsPageProps {
   searchParams: Promise<{ month?: string }>
@@ -44,22 +43,23 @@ export default async function TransactionsPage({
       ? monthParam
       : currentMonth(timezone)
 
-  const data = await getTransactions(month)
+  const [data, paymentMethods] = await Promise.all([
+    getTransactions(month),
+    getPaymentMethods(),
+  ])
 
   return (
-    <div className="flex min-h-screen flex-1">
-      <AppSidebar email={me?.email} active="transactions" />
-      <main className="flex flex-1 flex-col gap-4 px-8 py-8">
-        <p className="text-[13px] text-muted-foreground">Lessum / 거래 내역</p>
-        <h1 className="text-[28px] font-bold">거래 내역</h1>
-        <TransactionsView
-          monthLabel={monthLabel(month)}
-          prevMonth={shiftMonth(month, -1)}
-          nextMonth={shiftMonth(month, 1)}
-          reviewCount={data?.review_count ?? 0}
-          transactions={data?.transactions ?? []}
-        />
-      </main>
+    <div className="flex flex-1 flex-col gap-4">
+      <p className="text-[13px] text-muted-foreground">Lessum / 거래 내역</p>
+      <h1 className="text-[28px] font-bold">거래 내역</h1>
+      <TransactionsView
+        monthLabel={monthLabel(month)}
+        prevMonth={shiftMonth(month, -1)}
+        nextMonth={shiftMonth(month, 1)}
+        reviewCount={data?.review_count ?? 0}
+        transactions={data?.transactions ?? []}
+        paymentMethods={paymentMethods}
+      />
     </div>
   )
 }

@@ -1,16 +1,27 @@
 import { ApiError } from '../lib/errors.js'
+import type { ManualTransactionInput } from '../lib/manual-transaction.js'
 import { supabaseAdmin } from '../lib/supabase.js'
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/
 
+export interface InstallmentInfo {
+  total_months: number
+  current_no: number | null
+  billed_amount: number | null
+}
+
 export interface TransactionItem {
   id: string
-  kind: string
   transaction_date: string | null
-  raw_date: string | null
-  merchant: string | null
-  issuer: string
-  amount_krw: number | null
+  transaction_type: string
+  merchant_name: string | null
+  amount: number | null
+  payment_method_id: string | null
+  payment_method: string | null
+  source_type: string
+  memo: string | null
+  is_recurring: boolean
+  installment: InstallmentInfo | null
   requires_review: boolean
   review_reasons: string[]
 }
@@ -38,25 +49,55 @@ function monthRange(month: string) {
   return { from: `${month}-01`, to: `${nextMonth}-01` }
 }
 
+const MONTHLY_SELECT =
+  'id, transaction_date, transaction_type, merchant_name, amount, memo, source_type, payment_method_id, recurring_occurrence_id, payment_plan, installment_months, payment_method:payment_methods!transactions_payment_method_id_fkey(nickname), reviews:transaction_reviews(reason, resolved_at)'
+
+function monthIndex(date: string) {
+  const [year, monthNumber] = date.split('-').map(Number)
+  return year * 12 + (monthNumber - 1)
+}
+
 export async function getMonthlyTransactions(
   userId: string,
   month: string,
 ): Promise<MonthlyTransactions> {
   const { from, to } = monthRange(month)
 
-  const rows = await supabaseAdmin
-    .from('statement_rows')
-    .select(
-      'id, kind, transaction_date, raw_date, merchant, amount_krw, requires_review, review_reasons, statements!inner(issuer)',
-    )
-    .eq('user_id', userId)
-    .or(
-      `and(transaction_date.gte.${from},transaction_date.lt.${to}),transaction_date.is.null`,
-    )
-    .order('transaction_date', { ascending: false, nullsFirst: true })
-    .order('created_at', { ascending: false })
+  const [rows, chargeRows, installmentRows] = await Promise.all([
+    supabaseAdmin
+      .from('transactions')
+      .select(MONTHLY_SELECT)
+      .eq('user_id', userId)
+      .is('deleted_at', null)
+      .is('voided_at', null)
+      .is('reviews.resolved_at', null)
+      .or(
+        `and(transaction_date.gte.${from},transaction_date.lt.${to}),transaction_date.is.null`,
+      )
+      .order('transaction_date', { ascending: false, nullsFirst: true })
+      .order('created_at', { ascending: false }),
+    supabaseAdmin
+      .from('installment_charges')
+      .select('transaction_id, installment_no, billed_amount')
+      .eq('user_id', userId)
+      .gte('billing_month', from)
+      .lt('billing_month', to),
+    supabaseAdmin
+      .from('transactions')
+      .select(MONTHLY_SELECT)
+      .eq('user_id', userId)
+      .is('deleted_at', null)
+      .is('voided_at', null)
+      .is('reviews.resolved_at', null)
+      .eq('payment_plan', 'INSTALLMENT')
+      .not('installment_months', 'is', null)
+      .not('transaction_date', 'is', null)
+      .lt('transaction_date', from)
+      .order('transaction_date', { ascending: false })
+      .order('created_at', { ascending: false }),
+  ])
 
-  if (rows.error) {
+  if (rows.error || chargeRows.error || installmentRows.error) {
     throw new ApiError(
       500,
       'TRANSACTIONS_LOAD_FAILED',
@@ -64,20 +105,59 @@ export async function getMonthlyTransactions(
     )
   }
 
-  const transactions: TransactionItem[] = rows.data.map((itRow) => {
-    const statement = Array.isArray(itRow.statements)
-      ? itRow.statements[0]
-      : itRow.statements
+  const charges = new Map(
+    chargeRows.data.map((itRow) => [itRow.transaction_id, itRow]),
+  )
+
+  const viewMonthIndex = monthIndex(from)
+  const carriedRows = installmentRows.data.filter((itRow) => {
+    if (charges.has(itRow.id)) {
+      return true
+    }
+    if (itRow.transaction_date === null || itRow.installment_months === null) {
+      return false
+    }
+    const elapsed = viewMonthIndex - monthIndex(itRow.transaction_date)
+    return elapsed < itRow.installment_months
+  })
+
+  const seenIds = new Set<string>()
+  const mergedRows = [...rows.data, ...carriedRows].filter((itRow) => {
+    if (seenIds.has(itRow.id)) {
+      return false
+    }
+    seenIds.add(itRow.id)
+    return true
+  })
+
+  const transactions: TransactionItem[] = mergedRows.map((itRow) => {
+    const method = Array.isArray(itRow.payment_method)
+      ? itRow.payment_method[0]
+      : itRow.payment_method
+    const reviews = itRow.reviews ?? []
+    const charge = charges.get(itRow.id)
+    const installment: InstallmentInfo | null =
+      itRow.payment_plan === 'INSTALLMENT' && itRow.installment_months !== null
+        ? {
+            total_months: itRow.installment_months,
+            current_no: charge?.installment_no ?? null,
+            billed_amount: charge?.billed_amount ?? null,
+          }
+        : null
     return {
       id: itRow.id,
-      kind: itRow.kind,
       transaction_date: itRow.transaction_date,
-      raw_date: itRow.raw_date,
-      merchant: itRow.merchant,
-      issuer: statement?.issuer ?? '',
-      amount_krw: itRow.amount_krw,
-      requires_review: itRow.requires_review,
-      review_reasons: itRow.review_reasons ?? [],
+      transaction_type: itRow.transaction_type,
+      merchant_name: itRow.merchant_name,
+      amount: itRow.amount,
+      payment_method_id: itRow.payment_method_id,
+      payment_method: method?.nickname ?? null,
+      source_type: itRow.source_type,
+      memo: itRow.memo,
+      is_recurring: itRow.recurring_occurrence_id !== null,
+      installment,
+      requires_review: reviews.length > 0,
+      review_reasons: reviews.map((itReview) => itReview.reason),
     }
   })
 
@@ -85,5 +165,211 @@ export async function getMonthlyTransactions(
     month,
     review_count: transactions.filter((itRow) => itRow.requires_review).length,
     transactions,
+  }
+}
+
+const TRANSACTION_COLUMNS =
+  'id, transaction_date, transaction_type, merchant_name, amount, memo, source_type, payment_method_id, recurring_occurrence_id'
+
+interface TransactionRow {
+  id: string
+  transaction_date: string | null
+  transaction_type: string
+  merchant_name: string | null
+  amount: number | null
+  memo: string | null
+  source_type: string
+  payment_method_id: string | null
+  recurring_occurrence_id: string | null
+}
+
+function toTransactionItem(
+  row: TransactionRow,
+  paymentMethod: string | null,
+): TransactionItem {
+  return {
+    id: row.id,
+    transaction_date: row.transaction_date,
+    transaction_type: row.transaction_type,
+    merchant_name: row.merchant_name,
+    amount: row.amount,
+    payment_method_id: row.payment_method_id,
+    payment_method: paymentMethod,
+    source_type: row.source_type,
+    memo: row.memo,
+    is_recurring: row.recurring_occurrence_id !== null,
+    installment: null,
+    requires_review: false,
+    review_reasons: [],
+  }
+}
+
+async function resolvePaymentMethodNickname(
+  userId: string,
+  paymentMethodId: string | null,
+): Promise<string | null> {
+  if (!paymentMethodId) {
+    return null
+  }
+  const method = await supabaseAdmin
+    .from('payment_methods')
+    .select('id, nickname')
+    .eq('id', paymentMethodId)
+    .eq('user_id', userId)
+    .is('archived_at', null)
+    .maybeSingle()
+  if (method.error) {
+    throw new ApiError(
+      500,
+      'TRANSACTION_SAVE_FAILED',
+      '거래를 저장하지 못했습니다.',
+    )
+  }
+  if (!method.data) {
+    throw new ApiError(
+      400,
+      'PAYMENT_METHOD_NOT_FOUND',
+      '결제 수단을 찾을 수 없습니다.',
+    )
+  }
+  return method.data.nickname
+}
+
+export async function createManualTransaction(
+  userId: string,
+  input: ManualTransactionInput,
+): Promise<TransactionItem> {
+  const methodNickname = await resolvePaymentMethodNickname(
+    userId,
+    input.paymentMethodId,
+  )
+
+  const inserted = await supabaseAdmin
+    .from('transactions')
+    .insert({
+      user_id: userId,
+      transaction_date: input.transactionDate,
+      transaction_type: input.transactionType,
+      merchant_name: input.merchantName,
+      amount: input.amount,
+      payment_method_id: input.paymentMethodId,
+      source_type: 'MANUAL',
+      memo: input.memo,
+      client_request_id: input.clientRequestId,
+    })
+    .select(TRANSACTION_COLUMNS)
+    .single()
+
+  if (inserted.error) {
+    if (inserted.error.code === '23505' && input.clientRequestId) {
+      const existing = await supabaseAdmin
+        .from('transactions')
+        .select(TRANSACTION_COLUMNS)
+        .eq('user_id', userId)
+        .eq('client_request_id', input.clientRequestId)
+        .single()
+      if (!existing.error) {
+        return toTransactionItem(existing.data, methodNickname)
+      }
+    }
+    throw new ApiError(
+      500,
+      'TRANSACTION_SAVE_FAILED',
+      '거래를 저장하지 못했습니다.',
+    )
+  }
+
+  return toTransactionItem(inserted.data, methodNickname)
+}
+
+export async function updateTransaction(
+  userId: string,
+  transactionId: string,
+  input: ManualTransactionInput,
+): Promise<TransactionItem> {
+  const methodNickname = await resolvePaymentMethodNickname(
+    userId,
+    input.paymentMethodId,
+  )
+
+  const current = await supabaseAdmin
+    .from('transactions')
+    .select('id, version')
+    .eq('id', transactionId)
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (current.error) {
+    throw new ApiError(
+      500,
+      'TRANSACTION_SAVE_FAILED',
+      '거래를 저장하지 못했습니다.',
+    )
+  }
+  if (!current.data) {
+    throw new ApiError(404, 'TRANSACTION_NOT_FOUND', '거래를 찾을 수 없습니다.')
+  }
+
+  const updated = await supabaseAdmin
+    .from('transactions')
+    .update({
+      transaction_date: input.transactionDate,
+      transaction_type: input.transactionType,
+      merchant_name: input.merchantName,
+      amount: input.amount,
+      payment_method_id: input.paymentMethodId,
+      memo: input.memo,
+      version: current.data.version + 1,
+    })
+    .eq('id', transactionId)
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .select(TRANSACTION_COLUMNS)
+    .single()
+  if (updated.error) {
+    throw new ApiError(
+      500,
+      'TRANSACTION_SAVE_FAILED',
+      '거래를 저장하지 못했습니다.',
+    )
+  }
+
+  const resolved = await supabaseAdmin
+    .from('transaction_reviews')
+    .update({ resolved_at: new Date().toISOString() })
+    .eq('transaction_id', transactionId)
+    .eq('user_id', userId)
+    .is('resolved_at', null)
+  if (resolved.error) {
+    throw new ApiError(
+      500,
+      'TRANSACTION_SAVE_FAILED',
+      '거래를 저장하지 못했습니다.',
+    )
+  }
+
+  return toTransactionItem(updated.data, methodNickname)
+}
+
+export async function deleteTransaction(
+  userId: string,
+  transactionId: string,
+): Promise<void> {
+  const removed = await supabaseAdmin
+    .from('transactions')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', transactionId)
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .select('id')
+  if (removed.error) {
+    throw new ApiError(
+      500,
+      'TRANSACTION_DELETE_FAILED',
+      '거래를 삭제하지 못했습니다.',
+    )
+  }
+  if (removed.data.length === 0) {
+    throw new ApiError(404, 'TRANSACTION_NOT_FOUND', '거래를 찾을 수 없습니다.')
   }
 }

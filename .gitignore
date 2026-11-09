@@ -1,0 +1,5 @@
+# 로컬 도구 설정
+.agents/
+.claude/
+.mcp.json
+skills-lock.json

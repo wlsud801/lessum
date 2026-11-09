@@ -10,6 +10,7 @@ import { collectRunsRouter } from './routes/collect-runs.js'
 import { collectSettingsRouter } from './routes/collect-settings.js'
 import { mailConnectionsRouter } from './routes/mail-connections.js'
 import { meRouter } from './routes/me.js'
+import { paymentMethodsRouter } from './routes/payment-methods.js'
 import { transactionsRouter } from './routes/transactions.js'
 import { startCollectScheduler } from './services/collect-scheduler.js'
 
@@ -30,6 +31,7 @@ app.use('/collect-settings', collectSettingsRouter)
 app.use('/collect-runs', collectRunsRouter)
 app.use('/auto-register', autoRegisterRouter)
 app.use('/transactions', transactionsRouter)
+app.use('/payment-methods', paymentMethodsRouter)
 
 app.use(errorHandler)
 

@@ -1,16 +1,25 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react'
+import { useMemo, useState, useTransition } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from 'cn'
 
+import { AddTransactionForm } from '@/components/transactions/AddTransactionForm'
+import { EditTransactionForm } from '@/components/transactions/EditTransactionForm'
+import { TransactionRowActions } from '@/components/transactions/TransactionRowActions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect } from '@/components/ui/native-select'
+import { removeTransaction } from '@/lib/transactions/actions'
+import { SOURCE_LABELS, TYPE_LABELS } from '@/lib/transactions/labels'
 
-import type { TransactionItem } from '@/lib/transactions/types'
+import type {
+  PaymentMethodItem,
+  TransactionItem,
+  TransactionType,
+} from '@/lib/transactions/types'
 
 interface TransactionsViewProps {
   monthLabel: string
@@ -18,6 +27,7 @@ interface TransactionsViewProps {
   nextMonth: string
   reviewCount: number
   transactions: TransactionItem[]
+  paymentMethods: PaymentMethodItem[]
 }
 
 type TypeTab = 'all' | 'income' | 'expense' | 'transfer'
@@ -31,17 +41,10 @@ const TYPE_TABS: { id: TypeTab; label: string }[] = [
   { id: 'transfer', label: '정산·이동' },
 ]
 
-const KIND_LABELS: Record<TransactionItem['kind'], string> = {
-  purchase_candidate: '카드 지출',
-  refund: '환불',
-  adjustment_reference: '조정',
-}
-
-const ISSUER_LABELS: Record<TransactionItem['issuer'], string> = {
-  hyundai: '현대카드',
-  lotte: '롯데카드',
-  woori: '우리카드',
-  samsung: '삼성카드',
+const TYPE_TAB_GROUPS: Record<Exclude<TypeTab, 'all'>, TransactionType[]> = {
+  income: ['INCOME', 'INCOME_RETURN'],
+  expense: ['CARD_EXPENSE', 'ACCOUNT_EXPENSE', 'CASH_EXPENSE', 'EXPENSE_REFUND'],
+  transfer: ['CARD_BILL_PAYMENT', 'INTERNAL_TRANSFER'],
 }
 
 const SORTABLE_HEADERS: { key: SortKey; label: string; width: string }[] = [
@@ -56,21 +59,22 @@ const CELL_CLASS = 'px-2.5 py-2 text-sm'
 
 function formatDate(row: TransactionItem) {
   if (!row.transaction_date) {
-    return row.raw_date ?? '—'
+    return '—'
   }
   const [, month, day] = row.transaction_date.split('-')
   return `${month}.${day}`
 }
 
 function formatAmount(row: TransactionItem) {
-  if (row.amount_krw === null) {
+  if (row.amount === null) {
     return '확인 필요'
   }
-  return `${row.amount_krw.toLocaleString('ko-KR')}원`
+  return `${row.amount.toLocaleString('ko-KR')}원`
 }
 
 function statusLabel(row: TransactionItem) {
-  return row.requires_review ? '메일 · 확인 필요' : '메일 · 등록됨'
+  const source = SOURCE_LABELS[row.source_type] ?? row.source_type
+  return `${source} · ${row.requires_review ? '확인 필요' : '등록됨'}`
 }
 
 function sortValue(row: TransactionItem, key: SortKey): string | number {
@@ -78,13 +82,13 @@ function sortValue(row: TransactionItem, key: SortKey): string | number {
     case 'date':
       return row.transaction_date ?? ''
     case 'kind':
-      return KIND_LABELS[row.kind] ?? row.kind
+      return TYPE_LABELS[row.transaction_type] ?? row.transaction_type
     case 'merchant':
-      return row.merchant ?? ''
+      return row.merchant_name ?? ''
     case 'issuer':
-      return ISSUER_LABELS[row.issuer] ?? row.issuer
+      return row.payment_method ?? ''
     case 'amount':
-      return row.amount_krw ?? Number.NEGATIVE_INFINITY
+      return row.amount ?? Number.NEGATIVE_INFINITY
     case 'status':
       return statusLabel(row)
   }
@@ -96,29 +100,66 @@ export function TransactionsView({
   nextMonth,
   reviewCount,
   transactions,
+  paymentMethods,
 }: TransactionsViewProps) {
   const [typeTab, setTypeTab] = useState<TypeTab>('all')
   const [search, setSearch] = useState('')
-  const [issuerFilter, setIssuerFilter] = useState('all')
+  const [methodFilter, setMethodFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortAscending, setSortAscending] = useState(false)
+  const [editingRow, setEditingRow] = useState<TransactionItem | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [isDeleting, startDeleteTransition] = useTransition()
 
-  const issuers = useMemo(
-    () => [...new Set(transactions.map((itRow) => itRow.issuer))],
+  const handleDelete = (row: TransactionItem) => {
+    if (
+      !window.confirm(
+        `'${row.merchant_name ?? '이 거래'}' 거래를 삭제할까요?`,
+      )
+    ) {
+      return
+    }
+    startDeleteTransition(async () => {
+      const state = await removeTransaction(row.id)
+      if (state.error) {
+        setActionError(state.error)
+        return
+      }
+      setActionError(null)
+      if (editingRow?.id === row.id) {
+        setEditingRow(null)
+      }
+    })
+  }
+
+  const methods = useMemo(
+    () => [
+      ...new Set(
+        transactions
+          .map((itRow) => itRow.payment_method)
+          .filter((itMethod): itMethod is string => itMethod !== null),
+      ),
+    ],
     [transactions],
   )
 
   const rows = useMemo(() => {
     const keyword = search.trim().toLowerCase()
     const filtered = transactions.filter((itRow) => {
-      if (typeTab === 'income' || typeTab === 'transfer') {
+      if (
+        typeTab !== 'all' &&
+        !TYPE_TAB_GROUPS[typeTab].includes(itRow.transaction_type)
+      ) {
         return false
       }
-      if (keyword && !(itRow.merchant ?? '').toLowerCase().includes(keyword)) {
+      if (
+        keyword &&
+        !(itRow.merchant_name ?? '').toLowerCase().includes(keyword)
+      ) {
         return false
       }
-      if (issuerFilter !== 'all' && itRow.issuer !== issuerFilter) {
+      if (methodFilter !== 'all' && itRow.payment_method !== methodFilter) {
         return false
       }
       if (statusFilter === 'review' && !itRow.requires_review) {
@@ -139,7 +180,7 @@ export function TransactionsView({
           : String(left).localeCompare(String(right), 'ko')
       return sortAscending ? compared : -compared
     })
-  }, [transactions, typeTab, search, issuerFilter, statusFilter, sortKey, sortAscending])
+  }, [transactions, typeTab, search, methodFilter, statusFilter, sortKey, sortAscending])
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -226,19 +267,29 @@ export function TransactionsView({
         ))}
       </div>
 
-      <div className="rounded-lg border bg-muted/40">
-        <button
-          type="button"
-          disabled
-          title="준비 중입니다"
-          className="flex h-13 w-full cursor-not-allowed items-center justify-between px-4 py-3"
-        >
-          <span className="text-[15px] font-bold">거래 추가</span>
-          <ChevronDown className="size-4 text-muted-foreground" />
-        </button>
-      </div>
+      <AddTransactionForm paymentMethods={paymentMethods} />
 
       <h2 className="text-xl font-bold">거래 내역</h2>
+
+      {editingRow && (
+        <EditTransactionForm
+          key={editingRow.id}
+          transaction={editingRow}
+          paymentMethods={paymentMethods}
+          onClose={() => setEditingRow(null)}
+        />
+      )}
+
+      {isDeleting && (
+        <p role="status" className="text-sm text-muted-foreground">
+          삭제 중…
+        </p>
+      )}
+      {actionError && !isDeleting && (
+        <p role="alert" className="text-sm text-destructive">
+          {actionError}
+        </p>
+      )}
 
       <div className="flex gap-3">
         <div className="flex flex-1 flex-col gap-1.5">
@@ -273,13 +324,13 @@ export function TransactionsView({
           <NativeSelect
             id="issuerFilter"
             className="h-11"
-            value={issuerFilter}
-            onChange={(event) => setIssuerFilter(event.target.value)}
+            value={methodFilter}
+            onChange={(event) => setMethodFilter(event.target.value)}
           >
             <option value="all">전체</option>
-            {issuers.map((itIssuer) => (
-              <option key={itIssuer} value={itIssuer}>
-                {ISSUER_LABELS[itIssuer] ?? itIssuer}
+            {methods.map((itMethod) => (
+              <option key={itMethod} value={itMethod}>
+                {itMethod}
               </option>
             ))}
           </NativeSelect>
@@ -347,7 +398,7 @@ export function TransactionsView({
                 </button>
               </th>
               <th scope="col" className="px-2.5 py-1.5">
-                정기거래
+                정기·할부
               </th>
               <th scope="col" className="px-2.5 py-1.5">
                 <span className="sr-only">행 작업</span>
@@ -367,18 +418,20 @@ export function TransactionsView({
             ) : (
               rows.map((itRow) => (
                 <tr key={itRow.id} className="border-t">
-                  <td className={CELL_CLASS}>{formatDate(itRow)}</td>
-                  <td className={CELL_CLASS}>{KIND_LABELS[itRow.kind] ?? itRow.kind}</td>
-                  <td className={cn(CELL_CLASS, 'truncate')}>
-                    {itRow.merchant ?? '—'}
+                  <td className={CELL_CLASS} title={itRow.memo ?? undefined}>
+                    {formatDate(itRow)}
                   </td>
                   <td className={CELL_CLASS}>
-                    {ISSUER_LABELS[itRow.issuer] ?? itRow.issuer}
+                    {TYPE_LABELS[itRow.transaction_type] ?? itRow.transaction_type}
                   </td>
+                  <td className={cn(CELL_CLASS, 'truncate')}>
+                    {itRow.merchant_name ?? '—'}
+                  </td>
+                  <td className={CELL_CLASS}>{itRow.payment_method ?? '—'}</td>
                   <td
                     className={cn(
                       CELL_CLASS,
-                      itRow.amount_krw === null && 'text-muted-foreground',
+                      itRow.amount === null && 'text-muted-foreground',
                     )}
                   >
                     {formatAmount(itRow)}
@@ -390,17 +443,39 @@ export function TransactionsView({
                   >
                     {statusLabel(itRow)}
                   </td>
-                  <td className={cn(CELL_CLASS, 'text-center')}>—</td>
+                  <td className={cn(CELL_CLASS, 'text-center')}>
+                    {itRow.is_recurring || itRow.installment ? (
+                      <span className="inline-flex flex-col items-center gap-1">
+                        {itRow.is_recurring && (
+                          <span className="inline-flex h-6 items-center rounded-full border px-2 text-xs text-muted-foreground">
+                            정기
+                          </span>
+                        )}
+                        {itRow.installment && (
+                          <span
+                            className="inline-flex h-6 items-center rounded-full border px-2 text-xs text-muted-foreground"
+                            title={
+                              itRow.installment.billed_amount !== null
+                                ? `이번 달 청구 ${itRow.installment.billed_amount.toLocaleString('ko-KR')}원`
+                                : undefined
+                            }
+                          >
+                            할부{' '}
+                            {itRow.installment.current_no !== null
+                              ? `${itRow.installment.current_no}/${itRow.installment.total_months}`
+                              : `${itRow.installment.total_months}개월`}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                   <td className="px-2.5 py-1.5 text-center">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      disabled
-                      title="준비 중입니다"
-                      aria-label="행 작업 열기"
-                    >
-                      <MoreVertical />
-                    </Button>
+                    <TransactionRowActions
+                      onEdit={() => setEditingRow(itRow)}
+                      onDelete={() => handleDelete(itRow)}
+                    />
                   </td>
                 </tr>
               ))
