@@ -8,12 +8,14 @@ import { ApiError } from '../lib/errors.js'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { getConnectionEmail } from './mail-connections.js'
 
-const saveFailed = () =>
-  new ApiError(
+const saveFailed = (step: string, error: unknown) => {
+  console.error(`collect settings ${step} failed`, error)
+  return new ApiError(
     500,
     'COLLECT_SETTINGS_SAVE_FAILED',
     '수집 설정을 저장하지 못했습니다. 다시 시도해주세요.',
   )
+}
 
 export async function saveCollectSettings(
   userId: string,
@@ -25,7 +27,7 @@ export async function saveCollectSettings(
     .select('issuer, statement_password_encrypted')
     .eq('user_id', userId)
   if (existing.error) {
-    throw saveFailed()
+    throw saveFailed('card select', existing.error)
   }
 
   const rows = buildCardRows(
@@ -40,7 +42,7 @@ export async function saveCollectSettings(
     .from('card_collect_settings')
     .upsert(rows, { onConflict: 'user_id,issuer' })
   if (upserted.error) {
-    throw saveFailed()
+    throw saveFailed('card upsert', upserted.error)
   }
 
   const removed = await supabaseAdmin
@@ -49,7 +51,7 @@ export async function saveCollectSettings(
     .eq('user_id', userId)
     .not('issuer', 'in', `(${input.cards.map((card) => card.issuer).join(',')})`)
   if (removed.error) {
-    throw saveFailed()
+    throw saveFailed('card delete', removed.error)
   }
 
   const settings = await supabaseAdmin.from('collect_settings').upsert(
@@ -62,7 +64,7 @@ export async function saveCollectSettings(
     { onConflict: 'user_id' },
   )
   if (settings.error) {
-    throw saveFailed()
+    throw saveFailed('settings upsert', settings.error)
   }
 
   return rows.map((row) => ({
@@ -89,6 +91,10 @@ export async function getCollectSummary(userId: string) {
       .eq('enabled', true),
   ])
   if (settings.error || cards.error) {
+    console.error(
+      'collect settings load failed',
+      settings.error ?? cards.error,
+    )
     throw new ApiError(
       500,
       'COLLECT_SETTINGS_LOAD_FAILED',
