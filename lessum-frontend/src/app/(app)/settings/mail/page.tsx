@@ -5,11 +5,12 @@ import { connection } from 'next/server'
 
 import { ActionLink } from '@/components/settings/ActionLink'
 import { AutoCollectToggle } from '@/components/settings/AutoCollectToggle'
-import { Button } from '@/components/ui/button'
+import { ManualCollectButton } from '@/components/settings/ManualCollectButton'
 import { Card } from '@/components/ui/card'
 import { getAccessToken } from '@/lib/auth/api'
 import { getCollectSummary, getLatestCollectRun } from '@/lib/onboarding/api'
 import { formatDisplayDate } from '@/lib/onboarding/collect-schedule'
+import { getReviewCount } from '@/lib/transactions/api'
 
 import type {
   ArrivalDay,
@@ -141,9 +142,10 @@ export default async function MailCollectPage() {
     redirect('/login')
   }
 
-  const [summary, run] = await Promise.all([
+  const [summary, run, reviewCount] = await Promise.all([
     getCollectSummaryOrNull(token),
     getLatestCollectRunOrNull(token),
+    getReviewCount(),
   ])
 
   if (!summary) {
@@ -153,7 +155,6 @@ export default async function MailCollectPage() {
   const provider =
     PROVIDER_LABELS[summary.connection.provider] ?? summary.connection.provider
   const checkedAt = formatDateTime(run?.finished_at ?? run?.created_at ?? null)
-  const reviewCount = run?.totals.rows_review ?? 0
   const runCardsByIssuer = new Map(
     (run?.cards ?? []).map((itCard) => [itCard.issuer, itCard]),
   )
@@ -174,19 +175,11 @@ export default async function MailCollectPage() {
               명세서가 도착하면 거래 내역을 자동으로 모아요.
             </p>
           </div>
-          <div className="flex w-[200px] flex-col gap-1">
-            <Button
-              type="button"
-              variant="secondary"
-              size="lg"
-              className="w-full cursor-pointer font-bold"
-            >
-              새 메일 확인
-            </Button>
-            <p className="text-center text-xs text-muted-foreground">
-              {checkedAt ? `최근 확인 ${checkedAt}` : '최근 확인 기록 없음'}
-            </p>
-          </div>
+          <ManualCollectButton
+            checkedAtLabel={
+              checkedAt ? `최근 확인 ${checkedAt}` : '최근 확인 기록 없음'
+            }
+          />
         </div>
       </div>
 
