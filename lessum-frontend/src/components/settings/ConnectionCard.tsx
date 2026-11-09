@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 import { Card } from '@/components/ui/card'
 
 interface ConnectionCardProps {
@@ -5,6 +7,7 @@ interface ConnectionCardProps {
   status: string
   lines: string[]
   action: string
+  href?: string
 }
 
 export function ConnectionCard({
@@ -12,9 +15,10 @@ export function ConnectionCard({
   status,
   lines,
   action,
+  href,
 }: ConnectionCardProps) {
-  return (
-    <Card className="min-h-[260px] justify-between gap-3 bg-muted/40 p-6">
+  const card = (
+    <Card className="h-full min-h-[260px] justify-between gap-3 bg-muted/40 p-6 transition-colors group-hover/connection:bg-muted/70">
       <p className="text-lg font-bold">{title}</p>
       <p className="text-[22px] font-bold">{status}</p>
       <div className="flex flex-col text-sm text-muted-foreground">
@@ -25,4 +29,14 @@ export function ConnectionCard({
       <p className="text-[15px] font-bold">{action}</p>
     </Card>
   )
+
+  if (href) {
+    return (
+      <Link href={href} className="group/connection block cursor-pointer">
+        {card}
+      </Link>
+    )
+  }
+
+  return card
 }

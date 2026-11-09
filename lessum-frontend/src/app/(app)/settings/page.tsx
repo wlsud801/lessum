@@ -103,7 +103,11 @@ export default async function SettingsPage() {
       <section className="flex flex-col gap-4">
         <h2 className="text-lg font-bold">연결 관리</h2>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <ConnectionCard title="메일 자동 수집" {...mailCardProps(summary)} />
+          <ConnectionCard
+            title="메일 자동 수집"
+            href="/settings/mail"
+            {...mailCardProps(summary)}
+          />
           <ConnectionCard
             title="카드·계좌 관리"
             status={`카드 ${cardCount}개 · 계좌 별칭 ${accountCount}개`}
