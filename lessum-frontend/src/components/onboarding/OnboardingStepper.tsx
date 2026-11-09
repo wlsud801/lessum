@@ -4,14 +4,20 @@ const STEPS = ['메일 연결', '수집 설정', '자동 등록', '첫 수집 �
 
 interface OnboardingStepperProps {
   currentStep: number
+  currentStepLabel?: string
 }
 
-export function OnboardingStepper({ currentStep }: OnboardingStepperProps) {
+export function OnboardingStepper({
+  currentStep,
+  currentStepLabel,
+}: OnboardingStepperProps) {
   return (
     <ol className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {STEPS.map((label, index) => {
+      {STEPS.map((defaultLabel, index) => {
         const step = index + 1
         const isCurrent = step === currentStep
+        const label =
+          isCurrent && currentStepLabel ? currentStepLabel : defaultLabel
         return (
           <li
             key={label}
