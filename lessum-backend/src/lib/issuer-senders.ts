@@ -3,6 +3,7 @@ export const ISSUER_SENDER_DOMAINS: Record<string, string[]> = {
   lotte: ['lottecard.co.kr', 'lottecardmailcenter.net'],
   woori: ['wooricard.com'],
   samsung: ['samsungcard.com'],
+  shinhan: ['shinhancard.com'],
 }
 
 export function matchIssuerBySender(
