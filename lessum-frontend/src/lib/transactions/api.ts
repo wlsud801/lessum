@@ -41,6 +41,19 @@ export async function getPaymentMethods(): Promise<PaymentMethodItem[]> {
   return data
 }
 
+export async function getReviewCount(): Promise<number> {
+  const token = await getAccessToken()
+  if (!token) {
+    return 0
+  }
+
+  const { data } = await axios.get<{ review_count: number }>(
+    `${process.env.API_BASE_URL}/transactions/review-count`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  return data.review_count
+}
+
 export async function postTransaction(
   token: string,
   payload: CreateTransactionPayload,

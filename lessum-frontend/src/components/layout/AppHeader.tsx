@@ -13,9 +13,9 @@ interface AppHeaderProps {
 const MENU_ITEMS = [
   { id: 'overview', label: '한눈에', href: '/home' },
   { id: 'daily', label: '하루하루', href: '/transactions' },
+  { id: 'monthly', label: '달마다', href: null },
+  { id: 'manage', label: '나의 가계부', href: '/settings' },
 ] as const
-
-const DISABLED_ITEMS = ['달마다', '나의 가계부']
 
 const ITEM_CLASS = 'h-11 w-36 text-[15px] font-bold'
 
@@ -29,6 +29,20 @@ export function AppHeader({ email }: AppHeaderProps) {
       </Link>
       <nav className="flex items-center gap-3">
         {MENU_ITEMS.map((itItem) => {
+          if (!itItem.href) {
+            return (
+              <button
+                key={itItem.id}
+                type="button"
+                disabled
+                title="준비 중입니다"
+                className={cn(buttonVariants({ variant: 'outline' }), ITEM_CLASS)}
+              >
+                {itItem.label}
+              </button>
+            )
+          }
+
           const isActive = pathname.startsWith(itItem.href)
 
           return (
@@ -45,17 +59,6 @@ export function AppHeader({ email }: AppHeaderProps) {
             </Link>
           )
         })}
-        {DISABLED_ITEMS.map((itLabel) => (
-          <button
-            key={itLabel}
-            type="button"
-            disabled
-            title="준비 중입니다"
-            className={cn(buttonVariants({ variant: 'outline' }), ITEM_CLASS)}
-          >
-            {itLabel}
-          </button>
-        ))}
       </nav>
       <div className="w-48 text-[13px] text-muted-foreground">
         <p>계정</p>
