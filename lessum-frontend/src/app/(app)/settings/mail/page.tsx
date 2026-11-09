@@ -5,7 +5,6 @@ import { connection } from 'next/server'
 
 import { ActionLink } from '@/components/settings/ActionLink'
 import { AutoCollectToggle } from '@/components/settings/AutoCollectToggle'
-import { ManualCollectButton } from '@/components/settings/ManualCollectButton'
 import { Card } from '@/components/ui/card'
 import { getAccessToken } from '@/lib/auth/api'
 import { getCollectSummary, getLatestCollectRun } from '@/lib/onboarding/api'
@@ -29,7 +28,7 @@ const TABLE_HEADERS = [
   { label: '다음 자동 조회', width: 'w-[180px]' },
   { label: '최근 메일 수신', width: 'w-[220px]' },
   { label: '거래 반영', width: '' },
-  { label: '작업', width: 'w-[200px]' },
+  { label: '수집 결과', width: 'w-[200px]' },
 ]
 
 async function getCollectSummaryOrNull(
@@ -168,18 +167,11 @@ export default async function MailCollectPage() {
           </Link>
           {' / 연결 관리 / 메일 자동 수집'}
         </p>
-        <div className="flex items-start justify-between gap-6">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-[28px] font-bold">메일 자동 수집</h1>
-            <p className="text-base text-muted-foreground">
-              명세서가 도착하면 거래 내역을 자동으로 모아요.
-            </p>
-          </div>
-          <ManualCollectButton
-            checkedAtLabel={
-              checkedAt ? `최근 확인 ${checkedAt}` : '최근 확인 기록 없음'
-            }
-          />
+        <div className="flex flex-col gap-2">
+          <h1 className="text-[28px] font-bold">메일 자동 수집</h1>
+          <p className="text-base text-muted-foreground">
+            명세서가 도착하면 거래 내역을 자동으로 모아요.
+          </p>
         </div>
       </div>
 
@@ -200,7 +192,12 @@ export default async function MailCollectPage() {
             명세서 도착일에 자동으로 확인해요.
           </p>
         </div>
-        <ActionLink label="연결 설정 →" />
+        <div className="flex w-[204px] flex-col gap-2">
+          <ActionLink label="연결 설정 →" className="w-full" />
+          <p className="text-center text-xs text-muted-foreground">
+            {checkedAt ? `최근 확인 ${checkedAt}` : '최근 확인 기록 없음'}
+          </p>
+        </div>
       </Card>
 
       <div className="flex items-center justify-between gap-6 rounded-xl border p-4">
@@ -229,7 +226,7 @@ export default async function MailCollectPage() {
                     key={itHeader.label}
                     className={`px-3 py-2.5 text-left text-[13px] font-bold ${itHeader.width}`}
                   >
-                    {itHeader.label === '작업' ? '' : itHeader.label}
+                    {itHeader.label}
                   </th>
                 ))}
               </tr>
@@ -276,8 +273,8 @@ export default async function MailCollectPage() {
           </table>
         </div>
         <p className="text-[13px] text-muted-foreground">
-          메일 수신에 성공해도 문서 암호 입력이나 거래 확인이 필요할 수 있어요.
-          명세서가 아직 오지 않으면 ‘미도착’으로 안내해요.
+          ‘켜짐’ 옆 새로고침 아이콘으로 새 명세서를 불러와요. 아직 오지 않은
+          명세서는 ‘미도착’으로 안내해요.
         </p>
         <p className="text-[13px] text-muted-foreground">
           명세서 파일은 분석에만 사용하고 보관하지 않아요. 추출한 거래 내역은

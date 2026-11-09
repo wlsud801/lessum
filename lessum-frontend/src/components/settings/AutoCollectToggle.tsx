@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { cn } from 'cn'
 
+import { RefreshCollectButton } from '@/components/settings/RefreshCollectButton'
 import { setAutoCollect } from '@/lib/settings/actions'
 
 interface AutoCollectToggleProps {
@@ -51,6 +52,7 @@ export function AutoCollectToggle({ defaultEnabled }: AutoCollectToggleProps) {
           />
         </button>
         <p className="text-base font-bold">{isEnabled ? '켜짐' : '꺼짐'}</p>
+        {isEnabled && <RefreshCollectButton />}
       </div>
       {error && <p className="text-[13px] text-destructive">{error}</p>}
     </div>

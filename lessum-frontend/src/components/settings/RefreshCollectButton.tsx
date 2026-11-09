@@ -1,14 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
+import { cn } from 'cn'
 
-import { Button } from '@/components/ui/button'
 import { checkCollectRun, startManualCollect } from '@/lib/settings/actions'
-
-interface ManualCollectButtonProps {
-  checkedAtLabel: string
-}
 
 const POLL_INTERVAL_MS = 3000
 const POLL_TIMEOUT_MS = 120000
@@ -17,9 +14,7 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-export function ManualCollectButton({
-  checkedAtLabel,
-}: ManualCollectButtonProps) {
+export function RefreshCollectButton() {
   const router = useRouter()
   const [isChecking, setIsChecking] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -47,7 +42,7 @@ export function ManualCollectButton({
 
     const started = await startManualCollect()
     if (started.error || !started.runId) {
-      showToast(started.error ?? '새 메일 확인을 시작하지 못했습니다.')
+      showToast(started.error ?? '새 명세서 조회를 시작하지 못했습니다.')
       setIsChecking(false)
       return
     }
@@ -86,20 +81,23 @@ export function ManualCollectButton({
   }
 
   return (
-    <div className="flex w-[200px] flex-col gap-1">
-      <Button
+    <>
+      <button
         type="button"
-        variant="secondary"
-        size="lg"
+        aria-label="새 명세서 조회"
+        title="메일함에서 새 명세서를 불러와요"
         disabled={isChecking}
         onClick={handleClick}
-        className="w-full cursor-pointer font-bold"
+        className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md border bg-background transition-colors hover:bg-muted disabled:opacity-50"
       >
-        {isChecking ? '확인 중…' : '새 메일 확인'}
-      </Button>
-      <p className="text-center text-xs text-muted-foreground">
-        {checkedAtLabel}
-      </p>
+        <Image
+          src="/icons/refresh.svg"
+          alt=""
+          width={20}
+          height={20}
+          className={cn(isChecking && 'animate-spin')}
+        />
+      </button>
       {toast && (
         <div
           role="status"
@@ -108,6 +106,6 @@ export function ManualCollectButton({
           {toast}
         </div>
       )}
-    </div>
+    </>
   )
 }
