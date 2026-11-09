@@ -82,22 +82,31 @@ export function RefreshCollectButton() {
 
   return (
     <>
-      <button
-        type="button"
-        aria-label="새 명세서 조회"
-        title="메일함에서 새 명세서를 불러와요"
-        disabled={isChecking}
-        onClick={handleClick}
-        className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md border bg-background transition-colors hover:bg-muted disabled:opacity-50"
-      >
-        <Image
-          src="/icons/refresh.svg"
-          alt=""
-          width={20}
-          height={20}
-          className={cn(isChecking && 'animate-spin')}
-        />
-      </button>
+      <div className="group relative">
+        <button
+          type="button"
+          aria-label="새 명세서 조회"
+          disabled={isChecking}
+          onClick={handleClick}
+          className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md border bg-background transition-colors hover:bg-muted disabled:opacity-50"
+        >
+          <Image
+            src="/icons/refresh.svg"
+            alt=""
+            width={20}
+            height={20}
+            className={cn(isChecking && 'animate-spin')}
+          />
+        </button>
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute top-full left-1/2 z-10 mt-2 -translate-x-1/2 rounded-md bg-foreground px-2.5 py-1.5 text-xs whitespace-nowrap text-background opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+        >
+          {isChecking
+            ? '새 명세서를 불러오고 있어요'
+            : '메일함에서 새 명세서를 불러와요'}
+        </span>
+      </div>
       {toast && (
         <div
           role="status"
