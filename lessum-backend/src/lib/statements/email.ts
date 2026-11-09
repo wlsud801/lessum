@@ -7,6 +7,7 @@ import { loadDocument } from './html.js'
 import { parseHyundai } from './hyundai.js'
 import { parseLotte } from './lotte.js'
 import { LOGIN_URL } from './official-client.js'
+import { parseShinhan } from './shinhan.js'
 import type { StatementResult } from './statement.js'
 import { decodeHtml } from './text.js'
 import { decryptVestmail } from './vestmail.js'
@@ -19,6 +20,7 @@ const PARSERS: Record<string, (text: string) => StatementResult> = {
   lotte: parseLotte,
   woori: parseWoori,
   hyundai: parseHyundai,
+  shinhan: parseShinhan,
 }
 
 const sha256Hex = (data: Uint8Array | string) =>
