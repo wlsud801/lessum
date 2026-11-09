@@ -35,7 +35,7 @@ describe('parseStatementEmail', () => {
 
   it('지원하지 않는 카드사는 거부한다', async () => {
     await assert.rejects(
-      parseStatementEmail(buildEmail([{ filename: 'a.html', content: lotteFixture() }]), 'shinhan'),
+      parseStatementEmail(buildEmail([{ filename: 'a.html', content: lotteFixture() }]), 'kb'),
       /Unsupported issuer/,
     )
   })

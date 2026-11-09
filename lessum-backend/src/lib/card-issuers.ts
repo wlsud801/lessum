@@ -10,7 +10,7 @@ export const CARD_ISSUERS: CardIssuer[] = [
   { id: 'lotte', name: '롯데', supported: true, needsStatementPassword: false },
   { id: 'woori', name: '우리', supported: true, needsStatementPassword: true },
   { id: 'samsung', name: '삼성', supported: true, needsStatementPassword: true },
-  { id: 'shinhan', name: '신한', supported: false, needsStatementPassword: false },
+  { id: 'shinhan', name: '신한', supported: true, needsStatementPassword: false },
 ]
 
 export function findCardIssuer(id: string): CardIssuer | undefined {

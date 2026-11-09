@@ -87,17 +87,18 @@ describe('parseCollectSettingsInput', () => {
     )
   })
 
-  it('알 수 없는 카드사와 미지원 카드사를 구분해 거부한다', () => {
+  it('알 수 없는 카드사는 거부하고 신한카드는 허용한다', () => {
     const withCard = (card: unknown) => ({ ...validBody(), cards: [card] })
 
     expectCode(
       () => parseCollectSettingsInput(withCard({ issuer: 'unknown', arrival_day: 1 }), TODAY),
       'INVALID_ISSUER',
     )
-    expectCode(
-      () => parseCollectSettingsInput(withCard({ issuer: 'shinhan', arrival_day: 1 }), TODAY),
-      'UNSUPPORTED_ISSUER',
+    const parsed = parseCollectSettingsInput(
+      withCard({ issuer: 'shinhan', arrival_day: 1 }),
+      TODAY,
     )
+    assert.equal(parsed.cards[0].issuer, 'shinhan')
   })
 
   it('도착일은 1~31 정수 또는 last만 허용한다', () => {

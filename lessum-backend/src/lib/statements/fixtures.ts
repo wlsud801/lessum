@@ -38,6 +38,45 @@ export function wooriFixture({
     </tbody></table></body></html>`
 }
 
+export function shinhanFixture({
+  total = '1,246',
+  fee = '14',
+  count = '4',
+  extraRows = '',
+}: {
+  total?: string
+  fee?: string
+  count?: string
+  extraRows?: string
+} = {}): string {
+  const row = (
+    date: string,
+    merchant: string,
+    original: string,
+    terms: string,
+    billed: string,
+    rowFee: string,
+    benefitLabel = '',
+    benefitAmount = '',
+  ) =>
+    `<tr><td>${date}</td><td>본인<br/>443</td><td><a href="#">${merchant}</a></td><td>${original}</td><td>${terms}</td><td>${billed}</td><td>${rowFee}</td><td>${benefitLabel}</td><td>${benefitAmount}</td><td></td><td></td></tr>`
+  const subtotal = (label: string) =>
+    `<tr><th colspan="5">${label}</th><td></td><td></td><td></td><td></td><td></td><td></td></tr>`
+  return `<html><body><span>결제일 :</span>2026.11.14<table>
+    <thead><tr><th>이용일자</th><th>이용카드</th><th>이용가맹점</th><th>이용금액</th><th>할부기간/회차</th><th>이번달 내실금액</th><th>수수료</th><th>구분</th><th>금액</th><th>결제후잔액</th><th>포인트적립율</th></tr></thead>
+    <tfoot><tr><th colspan="3">총합계</th><td colspan="2">${count}건</td><td>${total}</td><td>${fee}</td><td colspan="2">-50</td><td></td><td></td></tr></tfoot>
+    <tbody>
+    ${row('26.10.06', '할인상점', '500', '', '450', '', '할인', '-50')}
+    ${row('26.10.07', '일반상점', '', '', '300', '')}
+    ${row('26.10.08', '할부상점', '600', '3/1', '200', '10')}
+    ${subtotal('일시불 소계')}
+    ${row('26.10.09', 'FIGMA /FIGMA.COM', '22', '', '296', '4')}
+    ${subtotal('해외이용 일시불 소계')}
+    ${subtotal('해외이용 합계')}
+    ${extraRows}
+    </tbody></table></body></html>`
+}
+
 export function hyundaiFixture({
   arrayLength = 3,
   declaredCount = 2,
