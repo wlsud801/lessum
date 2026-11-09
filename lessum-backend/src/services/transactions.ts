@@ -351,6 +351,29 @@ export async function updateTransaction(
   return toTransactionItem(updated.data, methodNickname)
 }
 
+export async function getReviewCount(
+  userId: string,
+): Promise<{ review_count: number }> {
+  const { count, error } = await supabaseAdmin
+    .from('transactions')
+    .select('id, reviews:transaction_reviews!inner(id)', {
+      count: 'exact',
+      head: true,
+    })
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .is('voided_at', null)
+    .is('reviews.resolved_at', null)
+  if (error) {
+    throw new ApiError(
+      500,
+      'REVIEW_COUNT_LOAD_FAILED',
+      '확인이 필요한 거래 수를 불러오지 못했습니다.',
+    )
+  }
+  return { review_count: count ?? 0 }
+}
+
 export async function deleteTransaction(
   userId: string,
   transactionId: string,

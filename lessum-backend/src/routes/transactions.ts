@@ -11,6 +11,7 @@ import {
   createManualTransaction,
   deleteTransaction,
   getMonthlyTransactions,
+  getReviewCount,
   updateTransaction,
 } from '../services/transactions.js'
 
@@ -27,6 +28,14 @@ transactionsRouter.get('/', requireAuth, async (req, res, next) => {
     const month = req.query.month
     assertValidMonth(month)
     res.json(await getMonthlyTransactions(req.user!.id, month))
+  } catch (error) {
+    next(error)
+  }
+})
+
+transactionsRouter.get('/review-count', requireAuth, async (req, res, next) => {
+  try {
+    res.json(await getReviewCount(req.user!.id))
   } catch (error) {
     next(error)
   }
