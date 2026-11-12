@@ -245,7 +245,7 @@ describe('hasLotteStatementLink', () => {
 describe('collectLotteEmail', () => {
   it('생년월일 인증 후 메일 결제일의 명세서를 수집한다', async () => {
     const { http, seen } = official()
-    const result = await collectLotteEmail(htmlEmail(linkHtml()), BIRTH, { http })
+    const result = await collectLotteEmail(htmlEmail(linkHtml()), BIRTH, { lotteHttp: http })
 
     assert.equal(result.status, 'parsed')
     assert.equal(result.issuer, 'lotte')
@@ -269,23 +269,23 @@ describe('collectLotteEmail', () => {
   })
 
   it('같은 명세서는 세션이 달라도 같은 원본 해시를 쓴다', async () => {
-    const a = await collectLotteEmail(htmlEmail(linkHtml()), BIRTH, { http: official().http })
+    const a = await collectLotteEmail(htmlEmail(linkHtml()), BIRTH, { lotteHttp: official().http })
     const b = await collectLotteEmail(htmlEmail(linkHtml(), `${SUBJECT} (재발송)`), BIRTH, {
-      http: official().http,
+      lotteHttp: official().http,
     })
     assert.equal(a.attachment_sha256, b.attachment_sha256)
   })
 
   it('생년월일이 없으면 요청 없이 입력 대기로 둔다', async () => {
     const { http, seen } = official()
-    const result = await collectLotteEmail(htmlEmail(linkHtml()), null, { http })
+    const result = await collectLotteEmail(htmlEmail(linkHtml()), null, { lotteHttp: http })
     assert.equal(result.status, 'password_required')
     assert.equal(seen.length, 0)
   })
 
   it('생년월일 형식이 아니면 요청하지 않는다', async () => {
     const { http, seen } = official()
-    const result = await collectLotteEmail(htmlEmail(linkHtml()), '12345', { http })
+    const result = await collectLotteEmail(htmlEmail(linkHtml()), '12345', { lotteHttp: http })
     assert.equal(result.status, 'password_required')
     assert.equal(seen.length, 0)
   })
@@ -294,14 +294,14 @@ describe('collectLotteEmail', () => {
     const { http, seen } = official({
       [LOTTE_VERIFY_PATH]: () => ({ body: JSON.stringify({ Status: { code: -1, message: '불일치' } }) }),
     })
-    const result = await collectLotteEmail(htmlEmail(linkHtml()), BIRTH, { http })
+    const result = await collectLotteEmail(htmlEmail(linkHtml()), BIRTH, { lotteHttp: http })
     assert.equal(result.status, 'password_required')
     assert.equal(seen.length, 2)
   })
 
   it('링크가 만료돼 입력 화면이 없으면 거부한다', async () => {
     const { http } = official({ [LOTTE_ENTRY_PATH]: () => ({ body: '<html>만료</html>' }) })
-    await assert.rejects(collectLotteEmail(htmlEmail(linkHtml()), BIRTH, { http }), StatementFormatError)
+    await assert.rejects(collectLotteEmail(htmlEmail(linkHtml()), BIRTH, { lotteHttp: http }), StatementFormatError)
   })
 
   it('결제 계좌가 여러 개면 거부한다', async () => {
@@ -310,12 +310,12 @@ describe('collectLotteEmail', () => {
         body: ok({ Content: '<input name="unit" value="U1"><input name="unit" value="U2"><input name="amex"><input name="amex">' }),
       }),
     })
-    await assert.rejects(collectLotteEmail(htmlEmail(linkHtml()), BIRTH, { http }), StatementFormatError)
+    await assert.rejects(collectLotteEmail(htmlEmail(linkHtml()), BIRTH, { lotteHttp: http }), StatementFormatError)
   })
 
   it('응답이 JSON이 아니면 거부한다', async () => {
     const { http } = official({ [LOTTE_DETAIL_PATH]: () => ({ body: '<html>error</html>' }) })
-    await assert.rejects(collectLotteEmail(htmlEmail(linkHtml()), BIRTH, { http }), StatementFormatError)
+    await assert.rejects(collectLotteEmail(htmlEmail(linkHtml()), BIRTH, { lotteHttp: http }), StatementFormatError)
   })
 })
 

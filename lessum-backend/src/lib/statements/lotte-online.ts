@@ -9,6 +9,7 @@ import { loadDocument, type CheerioAPI } from './html.js'
 import {
   finish,
   record,
+  type CardStatementResult,
   type StatementContext,
   type StatementResult,
   type TransactionRecord,
@@ -67,7 +68,7 @@ export interface LotteHttp {
 }
 
 export interface LotteOnlineDeps {
-  http?: LotteHttp
+  lotteHttp?: LotteHttp
 }
 
 interface BillMonth {
@@ -313,7 +314,7 @@ export function parseLotteDetail(
   html: string,
   context: StatementContext,
   declaredTotal: number,
-): StatementResult {
+): CardStatementResult {
   const $ = loadDocument(html)
   const lists = $('ul.useCardList')
   if (lists.length !== 1) {
@@ -536,7 +537,7 @@ export async function hasLotteStatementLink(data: Uint8Array): Promise<boolean> 
 export async function collectLotteEmail(
   data: Uint8Array,
   birth: string | null | undefined,
-  { http = createLotteHttp() }: LotteOnlineDeps = {},
+  { lotteHttp: http = createLotteHttp() }: LotteOnlineDeps = {},
 ): Promise<StatementResult> {
   const message = await parseMessage(data)
   if (typeof message.html !== 'string') {
