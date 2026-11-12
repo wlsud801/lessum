@@ -13,6 +13,11 @@ import {
   checkCollectRun,
   submitStatementPassword,
 } from '@/lib/settings/actions'
+import {
+  isBirthDatePassword,
+  statementPasswordLabel,
+  statementPasswordPlaceholder,
+} from '@/lib/settings/statement-password'
 
 const POLL_INTERVAL_MS = 3000
 const POLL_TIMEOUT_MS = 120000
@@ -125,13 +130,13 @@ export function StatementPasswordDialog({
           <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="statement-password" className="text-sm font-bold">
-                명세서 열기 암호
+                {statementPasswordLabel(issuer)}
               </Label>
               <Input
                 id="statement-password"
                 type="password"
                 autoComplete="off"
-                placeholder="••••••"
+                placeholder={statementPasswordPlaceholder(issuer)}
                 className="h-11"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -140,7 +145,11 @@ export function StatementPasswordDialog({
             </div>
 
             <div className="text-sm">
-              <p>네이버 앱 비밀번호와 다른 암호입니다.</p>
+              {isBirthDatePassword(issuer) ? (
+                <p>카드사 웹 명세서 본인인증에 쓰는 주민등록번호 앞 6자리입니다.</p>
+              ) : (
+                <p>네이버 앱 비밀번호와 다른 암호입니다.</p>
+              )}
               <p>암호를 화면이나 로그에 남기지 않습니다.</p>
             </div>
 
@@ -200,7 +209,7 @@ export function StatementPasswordDialog({
 
           {showConsent ? (
             <div className="flex flex-col gap-1 rounded-lg border bg-muted/40 p-4 text-[13px] text-muted-foreground">
-              <p>보관할 정보: 명세서 열기 암호</p>
+              <p>보관할 정보: {statementPasswordLabel(issuer)}</p>
               <p>동의한 암호만 서버에서 암호화해 보관하고 자동 처리에만 사용합니다.</p>
               <p>보관한 암호는 도착일·수집 설정에서 언제든 삭제할 수 있습니다.</p>
             </div>

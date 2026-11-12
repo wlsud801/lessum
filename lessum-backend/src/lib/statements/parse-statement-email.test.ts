@@ -33,6 +33,24 @@ describe('parseStatementEmail', () => {
     assert.ok(!requested.includes(PAGE))
   })
 
+  it('첨부 없이 명세서 링크만 있는 롯데 메일은 웹 명세서 경로로 처리한다', async () => {
+    const html = `<html><a href="https://lcpush.lottecard.co.kr/tms-msg-api/tracking?URL=https://www.lottecard.co.kr/app/LPMCDBA_V000.lc?p=X">명세서 확인하기</a></html>`
+    const data = Buffer.from(
+      [
+        'From: email_center@lottecard.co.kr',
+        'Subject: 2026년 11월 14일 이용대금 명세서',
+        'MIME-Version: 1.0',
+        'Content-Type: text/html; charset="utf-8"',
+        '',
+        html,
+      ].join('\r\n'),
+    )
+
+    const result = await parseStatementEmail(data, 'lotte')
+    assert.equal(result.status, 'password_required')
+    assert.equal(result.source_format, 'email_link')
+  })
+
   it('지원하지 않는 카드사는 거부한다', async () => {
     await assert.rejects(
       parseStatementEmail(buildEmail([{ filename: 'a.html', content: lotteFixture() }]), 'kb'),

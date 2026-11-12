@@ -7,7 +7,7 @@ export interface CardIssuer {
 
 export const CARD_ISSUERS: CardIssuer[] = [
   { id: 'hyundai', name: '현대', supported: true, needsStatementPassword: true },
-  { id: 'lotte', name: '롯데', supported: true, needsStatementPassword: false },
+  { id: 'lotte', name: '롯데', supported: true, needsStatementPassword: true },
   { id: 'woori', name: '우리', supported: true, needsStatementPassword: true },
   { id: 'samsung', name: '삼성', supported: true, needsStatementPassword: true },
   { id: 'shinhan', name: '신한', supported: true, needsStatementPassword: false },
