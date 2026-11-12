@@ -24,6 +24,7 @@ export interface CollectSettingsInput {
 export interface ExistingCardRow {
   issuer: string
   statement_password_encrypted: string | null
+  statement_password_one_time?: boolean
 }
 
 export const statementPasswordContext = (userId: string, issuer: string) =>
@@ -148,14 +149,15 @@ export function buildCardRows(
   today: string,
   key: Buffer,
 ) {
-  const stored = new Map(
-    existing.map((row) => [row.issuer, row.statement_password_encrypted]),
-  )
+  const stored = new Map(existing.map((row) => [row.issuer, row]))
 
   return input.cards.map((card) => {
     let encrypted: string | null
+    let oneTime = false
     if (card.statementPassword === undefined) {
-      encrypted = stored.get(card.issuer) ?? null
+      const kept = stored.get(card.issuer)
+      encrypted = kept?.statement_password_encrypted ?? null
+      oneTime = encrypted !== null && (kept?.statement_password_one_time ?? false)
     } else if (card.statementPassword === null) {
       encrypted = null
     } else {
@@ -173,7 +175,43 @@ export function buildCardRows(
       arrival_day: card.arrivalDay === 'last' ? null : card.arrivalDay,
       arrival_is_month_end: card.arrivalDay === 'last',
       statement_password_encrypted: encrypted,
+      statement_password_one_time: oneTime,
       next_collect_on: nextCollectDate(card.arrivalDay, today),
     }
   })
+}
+
+export interface StatementPasswordInput {
+  issuer: string
+  password: string
+  keep: boolean
+}
+
+export function parseStatementPasswordInput(
+  issuerId: unknown,
+  body: unknown,
+): StatementPasswordInput {
+  const issuer =
+    typeof issuerId === 'string' ? findCardIssuer(issuerId) : undefined
+  if (!issuer || !issuer.supported) {
+    throw badRequest('INVALID_ISSUER', '카드사를 확인해주세요.')
+  }
+  if (!issuer.needsStatementPassword) {
+    throw badRequest(
+      'STATEMENT_PASSWORD_NOT_NEEDED',
+      '이 카드는 명세서 암호가 필요하지 않습니다.',
+    )
+  }
+
+  const source = asRecord(body)
+  const password = source.statement_password
+  if (
+    typeof password !== 'string' ||
+    password.length === 0 ||
+    password.length > MAX_STATEMENT_PASSWORD_LENGTH
+  ) {
+    throw badRequest('INVALID_STATEMENT_PASSWORD', '명세서 암호를 확인해주세요.')
+  }
+
+  return { issuer: issuer.id, password, keep: source.keep === true }
 }

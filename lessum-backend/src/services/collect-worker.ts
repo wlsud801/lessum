@@ -35,6 +35,7 @@ interface CardSettingRow {
   arrival_day: number | null
   arrival_is_month_end: boolean
   statement_password_encrypted: string | null
+  statement_password_one_time: boolean
   next_collect_on: string | null
 }
 
@@ -456,6 +457,33 @@ async function collectCard(
   return outcome
 }
 
+async function clearOneTimePassword(
+  userId: string,
+  setting: CardSettingRow | undefined,
+): Promise<void> {
+  if (
+    !setting?.statement_password_one_time ||
+    !setting.statement_password_encrypted
+  ) {
+    return
+  }
+
+  const cleared = await supabaseAdmin
+    .from('card_collect_settings')
+    .update({
+      statement_password_encrypted: null,
+      statement_password_one_time: false,
+    })
+    .eq('user_id', userId)
+    .eq('issuer', setting.issuer)
+  if (cleared.error) {
+    console.error(
+      `one-time statement password clear failed: ${setting.issuer}`,
+      cleared.error,
+    )
+  }
+}
+
 async function advanceCardSchedule(
   userId: string,
   setting: CardSettingRow | undefined,
@@ -555,6 +583,7 @@ async function collectWithImap(
           .update({ ...outcome, updated_at: new Date().toISOString() })
           .eq('id', card.id)
         await advanceCardSchedule(run.user_id, setting)
+        await clearOneTimePassword(run.user_id, setting)
       }
     } finally {
       lock.release()
@@ -586,7 +615,7 @@ async function processRun(run: RunRow): Promise<void> {
       supabaseAdmin
         .from('card_collect_settings')
         .select(
-          'issuer, arrival_day, arrival_is_month_end, statement_password_encrypted, next_collect_on',
+          'issuer, arrival_day, arrival_is_month_end, statement_password_encrypted, statement_password_one_time, next_collect_on',
         )
         .eq('user_id', run.user_id)
         .eq('enabled', true),

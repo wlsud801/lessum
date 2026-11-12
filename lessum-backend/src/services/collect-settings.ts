@@ -2,8 +2,11 @@ import { env } from '../config/env.js'
 import { CARD_ISSUERS, findCardIssuer } from '../lib/card-issuers.js'
 import {
   buildCardRows,
+  statementPasswordContext,
   type CollectSettingsInput,
+  type StatementPasswordInput,
 } from '../lib/collect-settings.js'
+import { encryptSecret } from '../lib/crypto.js'
 import { ApiError } from '../lib/errors.js'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { getConnectionEmail } from './mail-connections.js'
@@ -24,7 +27,7 @@ export async function saveCollectSettings(
 ) {
   const existing = await supabaseAdmin
     .from('card_collect_settings')
-    .select('issuer, statement_password_encrypted')
+    .select('issuer, statement_password_encrypted, statement_password_one_time')
     .eq('user_id', userId)
   if (existing.error) {
     throw saveFailed('card select', existing.error)
@@ -73,6 +76,41 @@ export async function saveCollectSettings(
     next_collect_on: row.next_collect_on,
     has_statement_password: row.statement_password_encrypted !== null,
   }))
+}
+
+export async function saveCardStatementPassword(
+  userId: string,
+  input: StatementPasswordInput,
+) {
+  const encrypted = encryptSecret(
+    env.credentialEncryptionKey,
+    input.password,
+    statementPasswordContext(userId, input.issuer),
+  )
+
+  const updated = await supabaseAdmin
+    .from('card_collect_settings')
+    .update({
+      statement_password_encrypted: encrypted,
+      statement_password_one_time: !input.keep,
+    })
+    .eq('user_id', userId)
+    .eq('issuer', input.issuer)
+    .eq('enabled', true)
+    .select('issuer')
+    .maybeSingle()
+  if (updated.error) {
+    throw saveFailed('password update', updated.error)
+  }
+  if (!updated.data) {
+    throw new ApiError(
+      404,
+      'COLLECT_SETTINGS_NOT_FOUND',
+      '수집 설정을 먼저 저장해주세요.',
+    )
+  }
+
+  return { issuer: input.issuer, has_statement_password: true }
 }
 
 export async function getCollectSummary(userId: string) {
