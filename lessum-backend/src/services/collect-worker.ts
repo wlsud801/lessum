@@ -418,6 +418,9 @@ async function collectCard(
       result = await parseStatementEmail(message.source, issuer, password)
     } catch (error) {
       if (error instanceof StatementFormatError) {
+        console.error(
+          `collect card format unsupported: ${issuer} uid=${candidate.uid} ${error.message}`,
+        )
         sawFormatError = true
         continue
       }
