@@ -1,6 +1,11 @@
 import { CARD_ISSUERS, findCardIssuer } from '../lib/card-issuers.js'
 import { ApiError } from '../lib/errors.js'
-import { isManualRunTooSoon } from '../lib/manual-collect.js'
+import {
+  MANUAL_COLLECT_DAILY_LIMIT,
+  isManualDailyLimitReached,
+  isManualRunTooSoon,
+  manualCollectDayStart,
+} from '../lib/manual-collect.js'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { kickCollectWorker } from './collect-scheduler.js'
 import { assertConnectionUsable } from './mail-connections.js'
@@ -189,7 +194,7 @@ export async function createManualCollectRun(
 ): Promise<ManualCollectRunResult> {
   await assertConnectionUsable(userId)
 
-  const [cards, activeRun, lastManualRun] = await Promise.all([
+  const [cards, activeRun, lastManualRun, todayManualRuns] = await Promise.all([
     supabaseAdmin
       .from('card_collect_settings')
       .select('issuer')
@@ -210,8 +215,19 @@ export async function createManualCollectRun(
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabaseAdmin
+      .from('collect_runs')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('trigger', 'manual')
+      .gte('created_at', manualCollectDayStart()),
   ])
-  if (cards.error || activeRun.error || lastManualRun.error) {
+  if (
+    cards.error ||
+    activeRun.error ||
+    lastManualRun.error ||
+    todayManualRuns.error
+  ) {
     throw createFailed()
   }
   if (cards.data.length === 0) {
@@ -228,11 +244,18 @@ export async function createManualCollectRun(
       '이미 메일을 확인하고 있어요. 잠시 후 결과를 확인해주세요.',
     )
   }
+  if (isManualDailyLimitReached(todayManualRuns.count ?? 0)) {
+    throw new ApiError(
+      429,
+      'COLLECT_RUN_DAILY_LIMIT',
+      `새 메일 확인은 하루에 ${MANUAL_COLLECT_DAILY_LIMIT}번까지 할 수 있어요. 내일 다시 시도해주세요.`,
+    )
+  }
   if (isManualRunTooSoon(lastManualRun.data?.created_at ?? null)) {
     throw new ApiError(
       429,
       'COLLECT_RUN_TOO_SOON',
-      '새 메일 확인은 5분에 한 번만 할 수 있어요. 잠시 후 다시 시도해주세요.',
+      '새 메일 확인은 1분에 한 번만 할 수 있어요. 잠시 후 다시 시도해주세요.',
     )
   }
 
