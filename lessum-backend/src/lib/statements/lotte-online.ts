@@ -590,6 +590,7 @@ export async function collectLotteEmail(
           transactions: [],
           references: [],
           warnings: ['Lotte birth date verification was rejected'],
+          credential_rejected: true,
         },
         'lotte',
         data,

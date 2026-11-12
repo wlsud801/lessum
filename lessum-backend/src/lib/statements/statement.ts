@@ -121,6 +121,7 @@ export interface StatementResult {
   source_sha256?: string
   attachment_sha256?: string
   collection?: Record<string, unknown>
+  credential_rejected?: boolean
 }
 
 const PAYMENT_DATE_PATTERN =

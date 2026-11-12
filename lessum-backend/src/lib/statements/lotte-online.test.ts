@@ -280,6 +280,7 @@ describe('collectLotteEmail', () => {
     const { http, seen } = official()
     const result = await collectLotteEmail(htmlEmail(linkHtml()), null, { lotteHttp: http })
     assert.equal(result.status, 'password_required')
+    assert.equal(result.credential_rejected, undefined)
     assert.equal(seen.length, 0)
   })
 
@@ -296,6 +297,7 @@ describe('collectLotteEmail', () => {
     })
     const result = await collectLotteEmail(htmlEmail(linkHtml()), BIRTH, { lotteHttp: http })
     assert.equal(result.status, 'password_required')
+    assert.equal(result.credential_rejected, true)
     assert.equal(seen.length, 2)
   })
 
