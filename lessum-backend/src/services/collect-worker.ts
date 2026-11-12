@@ -433,6 +433,12 @@ async function collectCard(
     outcome.statements_found += 1
     worst = worstStatus(worst, resultToCardStatus(result.status))
 
+    if (result.credential_rejected) {
+      outcome.error_code = 'STATEMENT_PASSWORD_REJECTED'
+      await clearStatementPassword(run.user_id, issuer)
+      break
+    }
+
     if (result.status === 'parsed' || result.status === 'needs_review') {
       const saved = await saveStatement(
         run.user_id,
@@ -460,6 +466,23 @@ async function collectCard(
   return outcome
 }
 
+async function clearStatementPassword(
+  userId: string,
+  issuer: string,
+): Promise<void> {
+  const cleared = await supabaseAdmin
+    .from('card_collect_settings')
+    .update({
+      statement_password_encrypted: null,
+      statement_password_one_time: false,
+    })
+    .eq('user_id', userId)
+    .eq('issuer', issuer)
+  if (cleared.error) {
+    console.error(`statement password clear failed: ${issuer}`, cleared.error)
+  }
+}
+
 async function clearOneTimePassword(
   userId: string,
   setting: CardSettingRow | undefined,
@@ -470,21 +493,7 @@ async function clearOneTimePassword(
   ) {
     return
   }
-
-  const cleared = await supabaseAdmin
-    .from('card_collect_settings')
-    .update({
-      statement_password_encrypted: null,
-      statement_password_one_time: false,
-    })
-    .eq('user_id', userId)
-    .eq('issuer', setting.issuer)
-  if (cleared.error) {
-    console.error(
-      `one-time statement password clear failed: ${setting.issuer}`,
-      cleared.error,
-    )
-  }
+  await clearStatementPassword(userId, setting.issuer)
 }
 
 async function advanceCardSchedule(
