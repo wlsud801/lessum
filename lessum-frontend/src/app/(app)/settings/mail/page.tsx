@@ -5,6 +5,7 @@ import { connection } from 'next/server'
 
 import { ActionLink } from '@/components/settings/ActionLink'
 import { AutoCollectToggle } from '@/components/settings/AutoCollectToggle'
+import { StatementPasswordDialog } from '@/components/settings/StatementPasswordDialog'
 import { Card } from '@/components/ui/card'
 import { getAccessToken } from '@/lib/auth/api'
 import { getCollectSummary, getLatestCollectRun } from '@/lib/onboarding/api'
@@ -59,6 +60,17 @@ async function getLatestCollectRunOrNull(
 
 function arrivalLabel(day: ArrivalDay) {
   return day === 'last' ? '매월 말일' : `매월 ${day}일`
+}
+
+function statementMonthLabel(value: string | null): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: 'numeric',
+  }).formatToParts(value ? new Date(value) : new Date())
+  const part = (type: string) =>
+    parts.find((itPart) => itPart.type === type)?.value ?? ''
+  return `${part('year')}년 ${part('month')}월 명세서`
 }
 
 function formatDateTime(value: string | null): string | null {
@@ -126,8 +138,6 @@ function rowAction(runCard: CollectRunCard | undefined): {
       return { label: '등록 거래 보기 →', href: '/transactions' }
     case 'needs_review':
       return { label: '금액 확인 →', href: '/transactions' }
-    case 'password_required':
-      return { label: '암호 입력 →' }
     default:
       return { label: '결과 보기 →' }
   }
@@ -260,11 +270,21 @@ export default async function MailCollectPage() {
                       ))}
                     </td>
                     <td className="px-3 py-1">
-                      <ActionLink
-                        label={action.label}
-                        href={action.href}
-                        className="justify-start px-0"
-                      />
+                      {runCard?.status === 'password_required' ? (
+                        <StatementPasswordDialog
+                          issuer={itCard.issuer}
+                          cardName={itCard.name}
+                          statementLabel={statementMonthLabel(
+                            run?.created_at ?? null,
+                          )}
+                        />
+                      ) : (
+                        <ActionLink
+                          label={action.label}
+                          href={action.href}
+                          className="justify-start px-0"
+                        />
+                      )}
                     </td>
                   </tr>
                 )
