@@ -131,7 +131,7 @@ describe('parseCollectSettingsInput', () => {
     expectCode(
       () =>
         parseCollectSettingsInput(
-          { ...validBody(), cards: [{ issuer: 'lotte', arrival_day: 20, statement_password: 'x' }] },
+          { ...validBody(), cards: [{ issuer: 'shinhan', arrival_day: 20, statement_password: 'x' }] },
           TODAY,
         ),
       'STATEMENT_PASSWORD_NOT_NEEDED',
