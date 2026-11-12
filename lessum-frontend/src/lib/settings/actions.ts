@@ -11,6 +11,7 @@ import {
   enableAutoRegister,
   getCollectRun,
 } from '@/lib/onboarding/api'
+import { saveStatementPassword } from '@/lib/settings/api'
 
 export interface SettingsActionState {
   success?: boolean
@@ -82,6 +83,37 @@ export async function startManualCollect(): Promise<StartCollectState> {
       error: errorMessage(
         error,
         '새 메일 확인을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.',
+      ),
+    }
+  }
+}
+
+export async function submitStatementPassword(
+  issuer: string,
+  statementPassword: string,
+  keep: boolean,
+): Promise<StartCollectState> {
+  const token = await requireToken()
+
+  try {
+    await saveStatementPassword(token, issuer, statementPassword, keep)
+  } catch (error) {
+    return {
+      error: errorMessage(
+        error,
+        '암호를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.',
+      ),
+    }
+  }
+
+  try {
+    const run = await createCollectRun(token)
+    return { runId: run.run_id }
+  } catch (error) {
+    return {
+      error: errorMessage(
+        error,
+        '명세서 처리를 시작하지 못했습니다. 잠시 후 다시 시도해주세요.',
       ),
     }
   }

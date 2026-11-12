@@ -1,10 +1,14 @@
 import { Router } from 'express'
 
 import { todayInKst } from '../lib/collect-schedule.js'
-import { parseCollectSettingsInput } from '../lib/collect-settings.js'
+import {
+  parseCollectSettingsInput,
+  parseStatementPasswordInput,
+} from '../lib/collect-settings.js'
 import { requireAuth } from '../middleware/auth.js'
 import {
   getCollectSummary,
+  saveCardStatementPassword,
   saveCollectSettings,
 } from '../services/collect-settings.js'
 import { assertConnectionUsable } from '../services/mail-connections.js'
@@ -37,3 +41,16 @@ collectSettingsRouter.put('/', requireAuth, async (req, res, next) => {
     next(error)
   }
 })
+
+collectSettingsRouter.put(
+  '/cards/:issuer/statement-password',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const input = parseStatementPasswordInput(req.params.issuer, req.body)
+      res.json(await saveCardStatementPassword(req.user!.id, input))
+    } catch (error) {
+      next(error)
+    }
+  },
+)
