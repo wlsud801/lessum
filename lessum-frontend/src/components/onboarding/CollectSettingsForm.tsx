@@ -22,6 +22,10 @@ import type {
   CollectSettingsPayload,
   Mailbox,
 } from '@/lib/onboarding/types'
+import {
+  statementPasswordLabel,
+  statementPasswordPlaceholder,
+} from '@/lib/settings/statement-password'
 
 interface CollectSettingsFormProps {
   email: string
@@ -229,14 +233,14 @@ export function CollectSettingsForm({
           {passwordIssuers.map((issuer) => (
             <div key={issuer.id} className="flex flex-col gap-1.5">
               <Label htmlFor={`statementPassword-${issuer.id}`} className="font-bold">
-                {issuer.name} 명세서 열기 암호
+                {issuer.name} {statementPasswordLabel(issuer.id)}
               </Label>
               <Input
                 id={`statementPassword-${issuer.id}`}
                 name={`statementPassword-${issuer.id}`}
                 type="password"
                 autoComplete="off"
-                placeholder={`${issuer.name} 명세서 열기 암호를 입력하세요`}
+                placeholder={statementPasswordPlaceholder(issuer.id)}
                 className="h-11"
                 value={passwords[issuer.id] ?? ''}
                 onChange={(event) =>
